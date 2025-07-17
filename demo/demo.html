@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostMessage Tracker Sanity Check</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        iframe {
+            width: 100%;
+            height: 150px;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .listener-count {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        .log {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            height: 100px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 11px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="listener-count">
+        Expected Listeners<br>
+        <span id="detectedCount">Detecting...</span>
+    </div>
+
+    <div class="container">
+        <h1>🔍 PostMessage Tracker Demo - Used for Testing</h1>
+        <p>This demo creates 30+ postMessage listeners using various methods to thoroughly test extension detection.</p>
+
+        <div class="section">
+            <h2>📊 Detection Log</h2>
+            <div id="logOutput" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+            <button onclick="testAllListeners()">Test All Listeners</button>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <h3>🎯 Main Window Listeners</h3>
+                <p>Direct addEventListener calls</p>
+                <div id="mainListenerCount">0 listeners added</div>
+            </div>
+
+            <div class="section">
+                <h3>⏰ Timed Listeners</h3>
+                <p>Listeners added with delays</p>
+                <div id="timedListenerCount">0 listeners added</div>
+            </div>
+
+            <div class="section">
+                <h3>🔄 Dynamic Listeners</h3>
+                <button onclick="addDynamicListener()">Add Dynamic Listener</button>
+                <button onclick="removeDynamicListener()">Remove Dynamic Listener</button>
+                <div id="dynamicListenerCount">0 listeners added</div>
+            </div>
+
+            <div class="section">
+                <h3>🎭 Property Listeners</h3>
+                <p>Using onmessage property</p>
+                <div id="propertyListenerCount">0 listeners added</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <h3>🖼️ Real Iframe Test</h3>
+                <iframe id="testFrame1" src="data:text/html;charset=utf-8,%3Chtml%3E%3Chead%3E%3Cstyle%3Ebody%7Bfont-family%3AArial%3Bpadding%3A10px%3Bbackground%3A%234CAF50%3Bcolor%3Awhite%3Btext-align%3Acenter%3B%7D%3C/style%3E%3C/head%3E%3Cbody%3E%3Ch4%3ETest%20Iframe%201%3C/h4%3E%3Cp%3EThis%20iframe%20will%20add%20listeners%3C/p%3E%3Cscript%3Econsole.log('Iframe%201%3A%20Adding%20listeners')%3Bfor(var%20i%3D0%3Bi%3C5%3Bi%2B%2B)%7Bwindow.addEventListener('message'%2Cfunction(e)%7Bconsole.log('Iframe%201%20listener%20'%2Bi%2B'%20triggered')%3B%7D)%3B%7Dconsole.log('Iframe%201%3A%20Added%205%20listeners')%3B%3C/script%3E%3C/body%3E%3C/html%3E"></iframe>
+            </div>
+
+            <div class="section">
+                <h3>🖼️ Real Iframe Test 2</h3>
+                <iframe id="testFrame2" src="data:text/html;charset=utf-8,%3Chtml%3E%3Chead%3E%3Cstyle%3Ebody%7Bfont-family%3AArial%3Bpadding%3A10px%3Bbackground%3A%232196F3%3Bcolor%3Awhite%3Btext-align%3Acenter%3B%7D%3C/style%3E%3C/head%3E%3Cbody%3E%3Ch4%3ETest%20Iframe%202%3C/h4%3E%3Cp%3EThis%20iframe%20adds%20listeners%20with%20delays%3C/p%3E%3Cscript%3Econsole.log('Iframe%202%3A%20Starting')%3BsetTimeout(function()%7Bfor(var%20i%3D0%3Bi%3C3%3Bi%2B%2B)%7Bwindow.addEventListener('message'%2Cfunction(e)%7Bconsole.log('Iframe%202%20delayed%20listener%20triggered')%3B%7D)%3B%7Dconsole.log('Iframe%202%3A%20Added%203%20delayed%20listeners')%3B%7D%2C1000)%3B%3C/script%3E%3C/body%3E%3C/html%3E"></iframe>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🧪 Advanced Tests</h3>
+            <div class="grid">
+                <button onclick="addWrappedListener()">Add Wrapped Listener</button>
+                <button onclick="addBoundListener()">Add Bound Listener</button>
+                <button onclick="addAnonymousListener()">Add Anonymous Listener</button>
+                <button onclick="addNamedListener()">Add Named Listener</button>
+                <button onclick="addOnMessageProperty()">Set onmessage Property</button>
+                <button onclick="simulateLibraryListeners()">Simulate Library Listeners</button>
+                <button onclick="addMultipleQuickListeners()">Add 5 Quick Listeners</button>
+                <button onclick="addListenerWithCustomName()">Add Custom Named Listener</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📈 Detection Summary</h3>
+            <div id="stats">
+                <p><strong>✅ Reliably Detectable:</strong></p>
+                <ul style="margin: 5px 0 15px 20px; font-size: 14px;">
+                    <li>window.addEventListener calls</li>
+                    <li>window.onmessage property assignments</li>
+                    <li>Error tracking library wrappers (Sentry, Bugsnag, etc.)</li>
+                    <li>jQuery event handlers</li>
+                    <li>Bound and wrapped functions</li>
+                    <li>Static iframes (loaded with page)</li>
+                    <li>Anonymous and named functions</li>
+                    <li>Custom tracking names</li>
+                </ul>
+                
+                <p><strong>📊 Current Counts:</strong></p>
+                <div style="margin-left: 20px;">
+                    <p>Main window listeners: <span id="mainCount">0</span></p>
+                    <p>Timed listeners: <span id="timedCount">0</span></p>
+                    <p>Dynamic listeners: <span id="dynamicCount">0</span></p>
+                    <p>Property listeners: <span id="propertyCount">0</span></p>
+                    <p>Advanced listeners: <span id="advancedCount">0</span></p>
+                    <p><strong>Total created: <span id="totalCount">30+</span></strong></p>
+                    <p><em>Extension should detect all of these!</em></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let listenerCounts = {
+            main: 0,
+            timed: 0,
+            dynamic: 0,
+            property: 0,
+            advanced: 0
+        };
+
+        let dynamicListeners = [];
+
+        function log(message) {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.innerHTML += `[${timestamp}] ${message}<br>`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function updateCounts() {
+            document.getElementById('mainCount').textContent = listenerCounts.main;
+            document.getElementById('timedCount').textContent = listenerCounts.timed;
+            document.getElementById('dynamicCount').textContent = listenerCounts.dynamic;
+            document.getElementById('propertyCount').textContent = listenerCounts.property;
+            document.getElementById('advancedCount').textContent = listenerCounts.advanced;
+            
+            const total = Object.values(listenerCounts).reduce((a, b) => a + b, 0);
+            document.getElementById('totalCount').textContent = total + '+';
+            document.getElementById('detectedCount').textContent = `${total}+ created`;
+            
+            document.getElementById('mainListenerCount').textContent = `${listenerCounts.main} listeners added`;
+            document.getElementById('timedListenerCount').textContent = `${listenerCounts.timed} listeners added`;
+            document.getElementById('dynamicListenerCount').textContent = `${listenerCounts.dynamic} listeners added`;
+            document.getElementById('propertyListenerCount').textContent = `${listenerCounts.property} listeners added`;
+        }
+
+        function clearLog() {
+            document.getElementById('logOutput').innerHTML = '';
+        }
+
+        // 1. Add main window listeners immediately
+        log('Adding main window listeners...');
+        for (let i = 0; i < 5; i++) {
+            window.addEventListener('message', function mainListener(e) {
+                if (e.data && e.data.type === 'test-main') {
+                    log(`Main listener ${i + 1} triggered: ${e.data.message}`);
+                }
+            });
+            listenerCounts.main++;
+        }
+        log(`Added ${listenerCounts.main} main window listeners`);
+        updateCounts();
+
+        // 2. Add timed listeners
+        log('Scheduling timed listeners...');
+        setTimeout(() => {
+            for (let i = 0; i < 3; i++) {
+                window.addEventListener('message', function timedListener(e) {
+                    if (e.data && e.data.type === 'test-timed') {
+                        log(`Timed listener ${i + 1} triggered: ${e.data.message}`);
+                    }
+                });
+                listenerCounts.timed++;
+            }
+            log(`Added ${listenerCounts.timed} timed listeners`);
+            updateCounts();
+        }, 500);
+
+        setTimeout(() => {
+            for (let i = 0; i < 2; i++) {
+                window.addEventListener('message', function delayedListener(e) {
+                    if (e.data && e.data.type === 'test-delayed') {
+                        log(`Delayed listener ${i + 1} triggered: ${e.data.message}`);
+                    }
+                });
+                listenerCounts.timed++;
+            }
+            log(`Added 2 more delayed listeners`);
+            updateCounts();
+        }, 1500);
+
+        // 3. Property listeners - test onmessage property setting
+        log('Testing onmessage property...');
+        setTimeout(() => {
+            log('Setting initial onmessage property...');
+            window.onmessage = function initialOnMessage(e) {
+                if (e.data && e.data.type === 'test-property') {
+                    log(`Initial onmessage property triggered: ${e.data.message}`);
+                }
+            };
+            listenerCounts.property++;
+            log('Set initial onmessage property - extension should detect this');
+            updateCounts();
+        }, 750);
+
+        // 4. Dynamic listener functions
+        function addDynamicListener() {
+            const listener = function dynamicListener(e) {
+                if (e.data && e.data.type === 'test-dynamic') {
+                    log(`Dynamic listener triggered: ${e.data.message}`);
+                }
+            };
+            window.addEventListener('message', listener);
+            dynamicListeners.push(listener);
+            listenerCounts.dynamic++;
+            log('Added dynamic listener');
+            updateCounts();
+        }
+
+        function removeDynamicListener() {
+            if (dynamicListeners.length > 0) {
+                const listener = dynamicListeners.pop();
+                window.removeEventListener('message', listener);
+                listenerCounts.dynamic--;
+                log('Removed dynamic listener');
+                updateCounts();
+            }
+        }
+
+        // 5. Advanced listener types
+        function addWrappedListener() {
+            const wrappedFunction = function originalFunction(e) {
+                if (e.data && e.data.type === 'test-wrapped') {
+                    log(`Wrapped listener triggered: ${e.data.message}`);
+                }
+            };
+            
+            // Simulate a wrapper (like error tracking libraries do)
+            const wrapper = function(e) {
+                try {
+                    wrappedFunction(e);
+                } catch (err) {
+                    console.error('Wrapped function error:', err);
+                }
+            };
+            wrapper.__wrapped = wrappedFunction;
+            
+            window.addEventListener('message', wrapper);
+            listenerCounts.advanced++;
+            log('Added wrapped listener');
+            updateCounts();
+        }
+
+        function addBoundListener() {
+            const obj = {
+                name: 'TestObject',
+                handleMessage: function(e) {
+                    if (e.data && e.data.type === 'test-bound') {
+                        log(`Bound listener triggered: ${e.data.message}`);
+                    }
+                }
+            };
+            
+            const boundListener = obj.handleMessage.bind(obj);
+            window.addEventListener('message', boundListener);
+            listenerCounts.advanced++;
+            log('Added bound listener');
+            updateCounts();
+        }
+
+        function addAnonymousListener() {
+            window.addEventListener('message', function(e) {
+                if (e.data && e.data.type === 'test-anonymous') {
+                    log(`Anonymous listener triggered: ${e.data.message}`);
+                }
+            });
+            listenerCounts.advanced++;
+            log('Added anonymous listener');
+            updateCounts();
+        }
+
+        function addNamedListener() {
+            function namedMessageHandler(e) {
+                if (e.data && e.data.type === 'test-named') {
+                    log(`Named listener triggered: ${e.data.message}`);
+                }
+            }
+            
+            window.addEventListener('message', namedMessageHandler);
+            listenerCounts.advanced++;
+            log('Added named listener');
+            updateCounts();
+        }
+
+        function addOnMessageProperty() {
+            // Store existing handler
+            const existingHandler = window.onmessage;
+            
+            log('Setting window.onmessage property...');
+            
+            window.onmessage = function(e) {
+                // Call existing handler first
+                if (existingHandler) existingHandler(e);
+                
+                if (e.data && e.data.type === 'test-onmessage') {
+                    log(`onmessage property triggered: ${e.data.message}`);
+                }
+            };
+            
+            listenerCounts.property++;
+            log('Updated onmessage property - extension should detect this');
+            updateCounts();
+            
+            // Test it immediately
+            setTimeout(() => {
+                window.postMessage({
+                    type: 'test-onmessage',
+                    message: 'Testing onmessage property'
+                }, '*');
+            }, 100);
+        }
+
+        function addListenerToDocument() {
+            log('Adding message listener to document...');
+            
+            document.addEventListener('message', function documentMessageListener(e) {
+                if (e.data && e.data.type === 'test-document') {
+                    log(`Document listener triggered: ${e.data.message}`);
+                }
+            });
+            
+            listenerCounts.advanced++;
+            log('Added document message listener - extension should detect this on EventTarget');
+            updateCounts();
+            
+            // Test it immediately
+            setTimeout(() => {
+                log('Testing document listener...');
+                document.dispatchEvent(new MessageEvent('message', {
+                    data: {
+                        type: 'test-document',
+                        message: 'Testing document listener'
+                    }
+                }));
+            }, 100);
+        }
+
+        function simulateLibraryListeners() {
+            // Simulate jQuery-style event handling
+            const jQueryStyle = function(e) {
+                if (e.data && e.data.type === 'test-jquery') {
+                    log(`jQuery-style listener triggered: ${e.data.message}`);
+                }
+            };
+            jQueryStyle.toString = function() {
+                return 'function(e) { event.dispatch.apply(this, arguments); }';
+            };
+            
+            window.addEventListener('message', jQueryStyle);
+            listenerCounts.advanced++;
+            
+            // Simulate Sentry-style wrapper
+            const sentryWrapper = function(e) {
+                if (e.data && e.data.type === 'test-sentry') {
+                    log(`Sentry-wrapped listener triggered: ${e.data.message}`);
+                }
+            };
+            sentryWrapper.__sentry_original__ = function() { return 'original function'; };
+            
+            window.addEventListener('message', sentryWrapper);
+            listenerCounts.advanced++;
+            
+            log('Added library-style listeners (jQuery, Sentry)');
+            updateCounts();
+        }
+
+        function createNestedFrames() {
+            // Create iframe with same-origin approach using blob URL
+            const nestedFrameHTML = `
+                <html>
+                <head><style>body{font-family:Arial;padding:10px;background:#9C27B0;color:white;text-align:center;}</style></head>
+                <body>
+                    <h4>Nested Frame</h4>
+                    <p>This frame adds listeners</p>
+                    <script>
+                        console.log('Nested frame: Adding listeners');
+                        
+                        // Add multiple listeners with different patterns
+                        window.addEventListener('message', function nestedListener1(e) {
+                            console.log('Nested frame listener 1 triggered');
+                        });
+                        
+                        window.addEventListener('message', function nestedListener2(e) {
+                            console.log('Nested frame listener 2 triggered');
+                        });
+                        
+                        document.addEventListener('message', function nestedDocumentListener(e) {
+                            console.log('Nested frame document listener triggered');
+                        });
+                        
+                        console.log('Nested frame: Added 3 listeners');
+                    <\/script>
+                </body>
+                </html>
+            `;
+            
+            // Try blob URL approach for same-origin
+            const blob = new Blob([nestedFrameHTML], {type: 'text/html'});
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const iframe = document.createElement('iframe');
+            iframe.src = blobUrl;
+            iframe.style.width = '100%';
+            iframe.style.height = '120px';
+            iframe.style.border = '2px solid #fff';
+            iframe.style.borderRadius = '8px';
+            iframe.style.margin = '10px 0';
+            
+            // Add load event listener to debug
+            iframe.addEventListener('load', function() {
+                log('Nested iframe loaded via blob URL - should be same-origin now');
+                
+                // Clean up blob URL after loading
+                setTimeout(() => {
+                    URL.revokeObjectURL(blobUrl);
+                }, 1000);
+                
+                setTimeout(() => {
+                    log('Nested iframe listeners should be detected by extension');
+                }, 500);
+            });
+            
+            const container = document.querySelector('.grid');
+            const section = document.createElement('div');
+            section.className = 'section';
+            section.innerHTML = '<h3>🆕 Dynamically Created Nested Frame</h3>';
+            section.appendChild(iframe);
+            container.appendChild(section);
+            
+            listenerCounts.advanced += 3; // 3 listeners in nested frame
+            log('Created nested frame with 3 listeners using blob URL');
+            updateCounts();
+        }
+
+        function addMultipleQuickListeners() {
+            log('Adding 5 quick listeners in rapid succession...');
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    window.addEventListener('message', function quickListener(e) {
+                        if (e.data && e.data.type === `test-quick-${i}`) {
+                            log(`Quick listener ${i + 1} triggered: ${e.data.message}`);
+                        }
+                    });
+                    log(`Added quick listener ${i + 1}/5`);
+                }, i * 50); // 50ms intervals
+            }
+            
+            listenerCounts.advanced += 5;
+            log('Scheduled 5 quick listeners - extension should detect all of them');
+            updateCounts();
+        }
+
+        function addListenerWithCustomName() {
+            function customNamedHandler(e) {
+                if (e.data && e.data.type === 'test-custom-named') {
+                    log(`Custom named handler triggered: ${e.data.message}`);
+                }
+            }
+            
+            // Give it a custom property for tracking
+            customNamedHandler.__postmessagetrackername__ = 'MyCustomHandler_v1.2.3';
+            
+            window.addEventListener('message', customNamedHandler);
+            listenerCounts.advanced++;
+            log('Added listener with custom tracking name');
+            updateCounts();
+        }
+
+        function testDocumentListener() {
+            log('Manually testing document listeners...');
+            
+            // Test via document.dispatchEvent
+            document.dispatchEvent(new MessageEvent('message', {
+                data: {
+                    type: 'test-document',
+                    message: 'Manual document test'
+                }
+            }));
+            
+            log('Dispatched message event to document');
+        }
+
+        // Test function to trigger all listeners
+        function testAllListeners() {
+            const testTypes = [
+                'test-main', 'test-timed', 'test-delayed', 'test-property', 
+                'test-dynamic', 'test-wrapped', 'test-bound', 'test-anonymous',
+                'test-named', 'test-onmessage', 'test-jquery', 
+                'test-sentry', 'test-load-onmessage', 'test-custom-named'
+            ];
+            
+            // Add quick listener tests
+            for (let i = 0; i < 5; i++) {
+                testTypes.push(`test-quick-${i}`);
+            }
+            
+            log('Testing all listeners...');
+            testTypes.forEach((type, index) => {
+                setTimeout(() => {
+                    window.postMessage({
+                        type: type,
+                        message: `Test message for ${type}`
+                    }, '*');
+                }, index * 100);
+            });
+        }
+
+        // Auto-add some dynamic listeners on load
+        window.addEventListener('load', function() {
+            log('Page load event - adding automatic listeners...');
+            
+            // Test onmessage property immediately on load
+            setTimeout(() => {
+                log('Adding load-time onmessage property...');
+                const existingOnMessage = window.onmessage;
+                window.onmessage = function loadTimeOnMessage(e) {
+                    if (existingOnMessage) existingOnMessage(e);
+                    if (e.data && e.data.type === 'test-load-onmessage') {
+                        log(`Load-time onmessage triggered: ${e.data.message}`);
+                    }
+                };
+                listenerCounts.property++;
+                log('Load-time onmessage property set - extension should detect this!');
+                updateCounts();
+            }, 100);
+            
+            setTimeout(() => {
+                addDynamicListener();
+                addDynamicListener();
+                addDynamicListener();
+                log('Auto-added 3 dynamic listeners on page load');
+            }, 1000);
+            
+            setTimeout(() => {
+                addWrappedListener();
+                addBoundListener();
+                log('Auto-added wrapped and bound listeners');
+            }, 2000);
+        });
+
+        // Initial update and debugging
+        updateCounts();
+        log('Demo page initialized - listeners are being added...');
+        log('Extension should detect window.addEventListener and onmessage property calls');
+        log('Check console for "PostMessage Tracker V3" messages');
+        log('Check your extension popup to see detected listeners!');
+    </script>
+</body>
+</html>

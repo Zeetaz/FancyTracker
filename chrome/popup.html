@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>FancyTracker</title>
+	<link rel="stylesheet" href="popup.css">
+	<script type="text/javascript" src="popup-storage.js"></script>
+	<script type="text/javascript" src="popup-ui.js"></script>
+	<script type="text/javascript" src="popup-main.js"></script>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<div class="header-left">
+				<div class="logo">FancyTracker</div>
+				<button class="settings-btn" id="settings-btn" title="Settings">&#9881;</button>
+			</div>
+			<div class="url-display" id="h">Loading...</div>
+		</div>
+		
+		<div class="stats-bar">
+			<div class="listener-count" id="listener-count">0 listeners detected</div>
+			<div class="stats-left">
+				<div class="button-group">
+					<button class="show-blocked-btn" id="show-blocked-btn">Show Blocked</button>
+					<button class="highlight-btn" id="highlight-btn">Highlight</button>
+				</div>
+				<div class="status-badge" id="status-badge">Active</div>
+			</div>
+		</div>
+		
+		<div class="content">
+			<div class="listeners-container" id="x">
+				<!-- No initial loading state - data will load immediately from background script cache -->
+			</div>
+		</div>
+	</div>
+
+	<!-- Highlight Editor Modal -->
+	<div class="highlight-modal" id="highlight-modal">
+		<div class="highlight-editor">
+			<div class="highlight-header">
+				Custom Syntax Highlighting
+			</div>
+			<div class="highlight-content">
+				<textarea class="highlight-textarea" id="highlight-textarea" placeholder="Enter your highlighting rules (EXAMPLE):
+
+[red]
+innerHTML, location.href, eval
+
+[green]
+origin, trusted
+
+[blue]
+postMessage, addEventListener
+
+[yellow]
+function, var, let, const
+
+[purple]
+window, document
+
+[pink]
+event, data"
+				></textarea>
+				<div class="highlight-help">
+					Define highlighting rules by color. Each color section should start with [colorname] followed by comma-separated terms to highlight. Supported colors: red, green, blue, yellow, purple, pink.
+				</div>
+			</div>
+			<div class="highlight-actions">
+				<button class="highlight-btn-action highlight-btn-cancel" id="highlight-cancel">Cancel</button>
+				<button class="highlight-btn-action highlight-btn-save" id="highlight-save">Save & Apply</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Settings Modal -->
+	<div class="settings-modal" id="settings-modal">
+		<div class="settings-editor">
+			<div class="settings-header">
+				Settings
+			</div>
+			<div class="settings-content">
+				<!-- Detection & Formatting Section -->
+				<div class="settings-section">
+					<div class="settings-section-title">Detection & Formatting</div>
+					<label class="settings-checkbox-label">
+						<input type="checkbox" id="dedupe-toggle" class="settings-checkbox">
+						<span class="settings-checkbox-text">Enable duplicate listener detection</span>
+					</label>
+					<label class="settings-checkbox-label">
+						<input type="checkbox" id="prettify-toggle" class="settings-checkbox">
+						<span class="settings-checkbox-text">Auto-prettify listener code (BETA)</span>
+					</label>
+				</div>
+
+				<!-- Logging URL Section -->
+				<div class="settings-section">
+					<div class="settings-section-title">External Logging</div>
+					<input type="text" class="settings-input" id="logging-url-input" placeholder="https://your-server.com/api/listeners">
+					<div class="settings-help">Optional: URL to send detected listeners to</div>
+				</div>
+
+				<!-- Data Management Section -->
+				<div class="settings-section">
+					<div class="settings-section-title">Data Management</div>
+					<div class="settings-subsection">
+						<div class="settings-subsection-title">Blocked URLs</div>
+						<div class="settings-buttons">
+							<button class="settings-btn-action settings-btn-export" id="export-urls-btn">Export</button>
+							<button class="settings-btn-action settings-btn-import" id="import-urls-btn">Import</button>
+							<button class="settings-btn-action settings-btn-clear" id="clear-urls-btn">Clear</button>
+						</div>
+					</div>
+					<div class="settings-subsection">
+						<div class="settings-subsection-title">Blocked Listeners</div>
+						<div class="settings-buttons">
+							<button class="settings-btn-action settings-btn-export" id="export-listeners-btn">Export</button>
+							<button class="settings-btn-action settings-btn-import" id="import-listeners-btn">Import</button>
+							<button class="settings-btn-action settings-btn-clear" id="clear-listeners-btn">Clear</button>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="settings-actions">
+				<button class="settings-btn-action settings-btn-cancel" id="settings-cancel">Cancel</button>
+				<button class="settings-btn-action settings-btn-save" id="settings-save">Save</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Hidden file inputs for import functionality -->
+	<input type="file" id="import-urls-file" class="hidden-file-input" accept=".json">
+	<input type="file" id="import-listeners-file" class="hidden-file-input" accept=".json">
+</body>
+</html>
