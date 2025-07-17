@@ -102,6 +102,7 @@ This version adds support for many additional JavaScript wrapper libraries that 
 - **Analytics Tools** - Event tracking and analytics wrappers
 
 **Note:** Some may work better than others, some might not even work, it seems to work at least.
+
 **Edit:** Forgot why I even added this tbh but now it's there.
 
 ## Original Features
@@ -115,6 +116,8 @@ This version adds support for many additional JavaScript wrapper libraries that 
 ## Credits
 
 Originally created by [Frans Rosén](https://twitter.com/fransrosen). This version is a standalone adaptation built on top of his work.
+
+Of course, credit is due the AI overlords as well.
 
 ## License
 
