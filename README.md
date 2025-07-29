@@ -42,11 +42,11 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 </tr>
 </table>
 
-## How It Works
+## Stuff
 
 **Listener Detection** - Monitors all `postMessage` event listeners across frames and origins, showing their source code and stack traces.
 
-**Deduplication** - Automatically filters out duplicate listeners (OFF by default). When enabled, identical listeners from the **(explicitly) same source** are shown only once.
+**Deduplication** - Automatically filters out duplicate listeners (**ON** by default - u prob want this at all times). When enabled, identical listeners from the **(explicitly) same source** are shown only once.
 
 **Code Prettify** - Formats minified JavaScript code for better readability. Handles large code blocks efficiently with caching.
 
@@ -58,6 +58,9 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 
 **External Logging** - Optionally send all detected listeners to your own server endpoint for centralized monitoring.
 
+**Regex Filtering** - Added support to filter listeners via regex as well
+
+**Settings** - Added support for manually adjusting fopnt size of code blocks as well as max lines / code length until expansion trigger
 
 ## New Features
 ### 🆕 Added optimization
