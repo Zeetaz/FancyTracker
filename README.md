@@ -62,6 +62,8 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 
 **Settings** - Added support for manually adjusting fopnt size of code blocks as well as max lines / code length until expansion trigger
 
+- **Note:** Might add better SPA support at a later date... but it is annoying.
+
 ## New Features
 ### 🆕 Added optimization
 - Should be good enough, but there is a certain scenario where it could become a bit slow, basically only exists on one page on the internet that I can find so I wont tell you where or what. Shouldn't matter either way, causes like a 0.15sec loading delay.
