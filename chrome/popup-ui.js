@@ -281,10 +281,11 @@ class PopupUI {
         };
     }
 
-    // Optimized method to check if text should be truncated based on display length
+    // FIXED: Increased thresholds for expand functionality
     shouldTruncateCode(originalCode, displayCode) {
-        // Use display code length for truncation decisions since that's what users see
-        return displayCode.length > 1600 || displayCode.split('\n').length > 30;
+        // Use storage settings for thresholds
+        return displayCode.length > this.storage.expandThreshold || 
+               displayCode.split('\n').length > this.storage.maxLines;
     }
 
     // Create listener DOM element with optimized rendering
@@ -352,13 +353,29 @@ class PopupUI {
             // Show unblock button when viewing blocked items
             const unblockBtn = document.createElement('button');
             unblockBtn.className = 'unblock-btn';
-            unblockBtn.innerHTML = blockInfo.type === 'listener' ? '&#10003; Unblock' : '&#128279; Unblock URL';
-            unblockBtn.title = blockInfo.type === 'listener' ? 'Unblock this listener' : 'Unblock this URL';
-            unblockBtn.onclick = (e) => {
-                e.stopPropagation();
-                this.storage.removeFromBlocklist(blockInfo.type, blockInfo.value);
-                onRefresh();
-            };
+            
+            if (blockInfo.type === 'listener') {
+                unblockBtn.innerHTML = '&#10003; Unblock';
+                unblockBtn.title = 'Unblock this listener';
+            } else if (blockInfo.type === 'url') {
+                unblockBtn.innerHTML = '&#128279; Unblock URL';
+                unblockBtn.title = 'Unblock this URL';
+            } else if (blockInfo.type === 'regex') {
+                unblockBtn.innerHTML = '&#9881; Regex Blocked';
+                unblockBtn.title = `Blocked by regex: ${blockInfo.value}`;
+                unblockBtn.disabled = true;
+                unblockBtn.style.opacity = '0.6';
+                unblockBtn.style.cursor = 'help';
+            }
+            
+            if (blockInfo.type !== 'regex') {
+                unblockBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    this.storage.removeFromBlocklist(blockInfo.type, blockInfo.value);
+                    // Trigger refresh with badge update - now async
+                    await onRefresh();
+                };
+            }
             listenerActions.appendChild(unblockBtn);
         } else if (!blockInfo && !this.showBlockedOnly) {
             // Show block buttons when item is not blocked
@@ -366,31 +383,43 @@ class PopupUI {
             blockBtn.className = 'block-btn';
             blockBtn.innerHTML = '&#8856; Block';
             blockBtn.title = 'Block this specific listener';
-            blockBtn.onclick = (e) => {
+            blockBtn.onclick = async (e) => {
                 e.stopPropagation();
                 this.storage.addToBlocklist('listener', listener.listener);
-                onRefresh();
+                // Trigger refresh with badge update - now async
+                await onRefresh();
             };
             
-            // Extract JavaScript file URL from stack trace
+            // FIXED: Allow blocking of any URL - removed HTTP/HTTPS restriction
             const jsUrl = this.storage.extractJsUrlFromStack(listener.stack, listener.fullstack);
             
             const blockUrlBtn = document.createElement('button');
             blockUrlBtn.className = 'block-btn';
             blockUrlBtn.innerHTML = '&#128279; Block URL';
             
-            if (jsUrl) {
-                // We found a specific JS file to block
+            // Debug logging to help diagnose URL detection issues
+            console.log('FancyTracker: URL detection debug:', {
+                stack: listener.stack,
+                fullstack: listener.fullstack,
+                extractedUrl: jsUrl
+            });
+            
+            if (jsUrl && jsUrl.length > 0) {
+                // We found a URL to block (any protocol is allowed)
                 blockUrlBtn.title = `Block all listeners from: ${this.formatUrlForDisplay(jsUrl)}`;
-                blockUrlBtn.onclick = (e) => {
+                blockUrlBtn.disabled = false;
+                blockUrlBtn.style.opacity = '1';
+                blockUrlBtn.style.cursor = 'pointer';
+                blockUrlBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    console.log('Blocking JS URL:', jsUrl);
+                    console.log('Blocking URL:', jsUrl);
                     this.storage.addToBlocklist('url', jsUrl);
-                    onRefresh();
+                    // Trigger refresh with badge update - now async
+                    await onRefresh();
                 };
             } else {
-                // No specific JS file found, disable the button
-                blockUrlBtn.title = 'No specific JavaScript file detected in stack trace';
+                // No URL found, disable the button
+                blockUrlBtn.title = 'No JavaScript file detected in stack trace';
                 blockUrlBtn.disabled = true;
                 blockUrlBtn.style.opacity = '0.5';
                 blockUrlBtn.style.cursor = 'not-allowed';
@@ -421,12 +450,15 @@ class PopupUI {
         
         stackSection.appendChild(stackTrace);
 
-        // Code section - OPTIMIZED VERSION
+        // Code section - with configurable font size
         const codeSection = document.createElement('div');
         codeSection.className = 'code-section';
         
         const codeBlock = document.createElement('div');
         codeBlock.className = 'code-block';
+        
+        // Apply configurable font size
+        codeBlock.style.fontSize = `${this.storage.codeFontSize}px`;
         
         const originalCode = listener.listener || 'function() { /* code not available */ }';
         let displayCode = originalCode;
@@ -491,6 +523,9 @@ class PopupUI {
                 
                 // Apply highlighting to the processed code
                 codeBlock.innerHTML = this.applyHighlighting(displayCode, this.storage.highlightRules);
+                
+                // Update font size
+                codeBlock.style.fontSize = `${this.storage.codeFontSize}px`;
                 
                 // Restore expand state and functionality based on display code
                 if (this.shouldTruncateCode(originalText, displayCode)) {

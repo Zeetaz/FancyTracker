@@ -1,11 +1,10 @@
-// Main popup script for FancyTracker - Optimized with Pre-loading
+// Main popup script for FancyTracker - Optimized with Pre-loading and Port Reconnection Fix
 class PopupMain {
     constructor() {
         this.storage = new PopupStorage();
         this.ui = new PopupUI(this.storage);
-        this.port = chrome.runtime.connect({
-            name: "FancyTracker Communication"
-        });
+        this.port = null;
+        this.isPortConnected = false;
         
         this.currentListeners = [];
         this.currentUrl = '';
@@ -31,6 +30,10 @@ class PopupMain {
         
         // Track if the last refresh was a manual action (blocking/unblocking)
         this.isManualRefresh = false;
+        
+        // Track pending message requests
+        this.pendingRequests = 0;
+        this.maxRetries = 3;
     }
 
     // Initialize the popup with DOM caching and immediate data loading
@@ -43,7 +46,7 @@ class PopupMain {
             this.clearLoadingState();
             
             // Setup port communication FIRST for immediate data
-            this.setupPortCommunication();
+            await this.connectPort();
             
             // Load storage settings in parallel
             const storagePromise = this.storage.init();
@@ -54,15 +57,110 @@ class PopupMain {
             // Setup UI components while data loads
             this.setupEventListeners();
             this.setupHighlightEditor();
+            this.setupRegexEditor();
             this.setupSettingsModal();
             
             // Wait for storage and tab info
             await Promise.all([storagePromise, tabPromise]);
             
-            console.log('FancyTracker popup initialized with pre-loading optimization');
+            console.log('FancyTracker popup initialized with pre-loading optimization and port reconnection');
         } catch (error) {
             console.error('FancyTracker: Popup initialization error:', error);
             this.ui.displayListeners([], 'Error loading', () => {});
+        }
+    }
+
+    // Connect or reconnect the port with retry logic
+    async connectPort() {
+        try {
+            if (this.port) {
+                this.port.disconnect();
+            }
+            
+            this.port = chrome.runtime.connect({
+                name: "FancyTracker Communication"
+            });
+            
+            this.isPortConnected = true;
+            this.setupPortCommunication();
+            console.log('FancyTracker: Port connected successfully');
+            
+            // Request initial data immediately after connection
+            this.requestData();
+            
+        } catch (error) {
+            console.error('FancyTracker: Failed to connect port:', error);
+            this.isPortConnected = false;
+            throw error;
+        }
+    }
+
+    // Setup port communication with automatic reconnection handling
+    setupPortCommunication() {
+        if (!this.port) return;
+        
+        // Listen for messages from background (including immediate pre-loaded data)
+        this.port.onMessage.addListener((msg) => {
+            console.log("FancyTracker: message received:", msg);
+            this.pendingRequests = Math.max(0, this.pendingRequests - 1);
+            this.handleBackgroundMessage(msg);
+        });
+        
+        // Handle port disconnection with automatic reconnection
+        this.port.onDisconnect.addListener(() => {
+            console.log('FancyTracker: Port disconnected');
+            this.isPortConnected = false;
+            
+            if (chrome.runtime.lastError) {
+                console.error('FancyTracker: Port error:', chrome.runtime.lastError);
+            }
+            
+            // Don't attempt reconnection if popup is being closed
+            if (!document.hidden) {
+                console.log('FancyTracker: Attempting to reconnect port...');
+                setTimeout(() => {
+                    this.connectPort().catch(err => {
+                        console.error('FancyTracker: Port reconnection failed:', err);
+                    });
+                }, 100); // Small delay before reconnection
+            }
+        });
+    }
+
+    // Safe method to send messages with automatic reconnection
+    async sendMessage(message, retryCount = 0) {
+        if (retryCount >= this.maxRetries) {
+            console.error('FancyTracker: Max retries reached for message:', message);
+            return false;
+        }
+        
+        try {
+            // Check if port is connected
+            if (!this.isPortConnected || !this.port) {
+                console.log('FancyTracker: Port not connected, attempting to reconnect...');
+                await this.connectPort();
+            }
+            
+            this.pendingRequests++;
+            this.port.postMessage(message);
+            return true;
+            
+        } catch (error) {
+            console.error('FancyTracker: Error sending message, attempt', retryCount + 1, ':', error);
+            this.isPortConnected = false;
+            
+            // Wait a bit and retry
+            await new Promise(resolve => setTimeout(resolve, 200 * (retryCount + 1)));
+            return this.sendMessage(message, retryCount + 1);
+        }
+    }
+
+    // Request data from background script
+    async requestData() {
+        const success = await this.sendMessage("get-stuff");
+        if (!success) {
+            console.error('FancyTracker: Failed to request data from background script');
+            // Show error state or retry later
         }
     }
 
@@ -98,26 +196,6 @@ class PopupMain {
             this.currentTabId = null;
             this.currentUrl = 'Unknown URL';
         }
-    }
-
-    // Setup port communication with background script - optimized for pre-loading
-    setupPortCommunication() {
-        // Listen for messages from background (including immediate pre-loaded data)
-        this.port.onMessage.addListener((msg) => {
-            console.log("FancyTracker: message received:", msg);
-            this.handleBackgroundMessage(msg);
-        });
-        
-        // Handle port disconnection
-        this.port.onDisconnect.addListener(() => {
-            console.log('FancyTracker: Port disconnected');
-            if (chrome.runtime.lastError) {
-                console.error('FancyTracker: Port error:', chrome.runtime.lastError);
-            }
-        });
-
-        // Request data (background script will respond immediately with cached data)
-        this.port.postMessage("get-stuff");
     }
 
     // Handle messages from background script - optimized for pre-loaded data
@@ -192,10 +270,11 @@ class PopupMain {
         // Set new timer with reduced delay for faster response
         this.updateDebounceTimer = setTimeout(() => {
             this.isUpdating = true;
-            this.ui.displayListeners(this.currentListeners, this.currentUrl, () => {
+            this.ui.displayListeners(this.currentListeners, this.currentUrl, async () => {
                 // Mark this as a manual refresh when onRefresh is called
                 this.isManualRefresh = true;
-                this.port.postMessage("get-stuff");
+                // Request fresh data from background, which will trigger badge update
+                await this.requestData();
             }, preserveScroll);
             this.updateDebounceTimer = null;
             this.isUpdating = false;
@@ -234,6 +313,147 @@ class PopupMain {
                 }
             });
         }
+    }
+
+    // Setup regex editor modal with robust DOM ready checking
+    setupRegexEditor() {
+        console.log('FancyTracker: Setting up regex editor...');
+        
+        // Use a retry mechanism to ensure DOM is ready
+        const setupWithRetry = (retryCount = 0) => {
+            const maxRetries = 10;
+            
+            const regexBtn = document.getElementById('regex-btn');
+            const modal = document.getElementById('regex-modal');
+            const textarea = document.getElementById('regex-textarea');
+            const saveBtn = document.getElementById('regex-save');
+            const cancelBtn = document.getElementById('regex-cancel');
+            
+            console.log(`FancyTracker: Regex setup attempt ${retryCount + 1}, elements found:`, {
+                regexBtn: !!regexBtn,
+                modal: !!modal,
+                textarea: !!textarea,
+                saveBtn: !!saveBtn,
+                cancelBtn: !!cancelBtn
+            });
+            
+            if (!regexBtn && retryCount < maxRetries) {
+                console.log('FancyTracker: Regex button not found, retrying in 100ms...');
+                setTimeout(() => setupWithRetry(retryCount + 1), 100);
+                return;
+            }
+            
+            if (!regexBtn) {
+                console.error('FancyTracker: Regex button not found after max retries');
+                return;
+            }
+            
+            if (!modal || !textarea || !saveBtn || !cancelBtn) {
+                console.error('FancyTracker: Some regex modal elements not found:', {
+                    modal: !!modal,
+                    textarea: !!textarea,
+                    saveBtn: !!saveBtn,
+                    cancelBtn: !!cancelBtn
+                });
+                return;
+            }
+            
+            // Load existing regex patterns into textarea
+            chrome.storage.local.get(['blockedRegex'], (result) => {
+                if (result.blockedRegex && result.blockedRegex.length > 0) {
+                    textarea.value = result.blockedRegex.join('\n');
+                    console.log('FancyTracker: Loaded existing regex patterns:', result.blockedRegex);
+                }
+            });
+            
+            // Remove any existing event listeners to avoid duplicates
+            const newRegexBtn = regexBtn.cloneNode(true);
+            regexBtn.parentNode.replaceChild(newRegexBtn, regexBtn);
+            
+            // Open modal - using the cloned button
+            newRegexBtn.addEventListener('click', (e) => {
+                console.log('FancyTracker: Regex button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Test modal visibility
+                console.log('FancyTracker: Modal display before:', window.getComputedStyle(modal).display);
+                
+                // Reload patterns in case they changed
+                chrome.storage.local.get(['blockedRegex'], (result) => {
+                    if (result.blockedRegex && result.blockedRegex.length > 0) {
+                        textarea.value = result.blockedRegex.join('\n');
+                    } else {
+                        textarea.value = '';
+                    }
+                    console.log('FancyTracker: Reloaded regex patterns');
+                });
+                
+                // Force show the modal with multiple methods
+                modal.style.display = 'flex';
+                modal.classList.add('show');
+                modal.style.zIndex = '9999';
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.right = '0';
+                modal.style.bottom = '0';
+                modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                
+                console.log('FancyTracker: Modal display after:', window.getComputedStyle(modal).display);
+                console.log('FancyTracker: Modal classList:', modal.classList.toString());
+                console.log('FancyTracker: Regex modal should be visible now');
+            });
+            
+            // Close modal
+            cancelBtn.addEventListener('click', (e) => {
+                console.log('FancyTracker: Regex cancel clicked');
+                e.preventDefault();
+                e.stopPropagation();
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+            });
+            
+            // Close modal when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    console.log('FancyTracker: Clicked outside regex modal, closing');
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                }
+            });
+            
+            // Save and apply regex patterns
+            saveBtn.addEventListener('click', async (e) => {
+                console.log('FancyTracker: Regex save clicked');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const regexText = textarea.value;
+                const patterns = this.storage.parseRegexText(regexText);
+                
+                console.log('FancyTracker: Parsed regex patterns:', patterns);
+                
+                // Save patterns to storage
+                this.storage.saveRegexPatterns(patterns);
+                
+                console.log('FancyTracker: Saved regex patterns:', patterns);
+                
+                // Mark as manual refresh to update display
+                this.isManualRefresh = true;
+                await this.requestData();
+                
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+            });
+            
+            console.log('FancyTracker: Regex editor setup complete');
+        };
+        
+        // Start the setup process
+        setupWithRetry();
     }
 
     // Setup highlight editor modal with optimized event handling
@@ -281,7 +501,7 @@ class PopupMain {
         });
     }
 
-    // Setup settings modal with improved event handling
+    // Setup settings modal with improved event handling and code display settings
     setupSettingsModal() {
         const settingsBtn = document.getElementById('settings-btn');
         const modal = document.getElementById('settings-modal');
@@ -290,6 +510,11 @@ class PopupMain {
         const cancelBtn = document.getElementById('settings-cancel');
         const prettifyToggle = document.getElementById('prettify-toggle');
         const dedupeToggle = document.getElementById('dedupe-toggle');
+        
+        // Code display settings
+        const expandThresholdInput = document.getElementById('expand-threshold-input');
+        const maxLinesInput = document.getElementById('max-lines-input');
+        const fontSizeInput = document.getElementById('font-size-input');
 
         if (!settingsBtn || !modal) {
             console.error('Settings elements not found');
@@ -314,6 +539,17 @@ class PopupMain {
                 console.log('FancyTracker: Setting dedupe checkbox to:', this.storage.dedupeEnabled);
             }
             
+            // Set code display settings
+            if (expandThresholdInput) {
+                expandThresholdInput.value = this.storage.expandThreshold;
+            }
+            if (maxLinesInput) {
+                maxLinesInput.value = this.storage.maxLines;
+            }
+            if (fontSizeInput) {
+                fontSizeInput.value = this.storage.codeFontSize;
+            }
+            
             modal.classList.add('show');
         });
         
@@ -331,6 +567,16 @@ class PopupMain {
             // Reset dedupe toggle to original state
             if (dedupeToggle) {
                 dedupeToggle.checked = this.storage.dedupeEnabled;
+            }
+            // Reset code display settings
+            if (expandThresholdInput) {
+                expandThresholdInput.value = this.storage.expandThreshold;
+            }
+            if (maxLinesInput) {
+                maxLinesInput.value = this.storage.maxLines;
+            }
+            if (fontSizeInput) {
+                fontSizeInput.value = this.storage.codeFontSize;
             }
         };
         
@@ -358,13 +604,43 @@ class PopupMain {
                     this.isManualRefresh = true;
                 }
                 
+                // Handle code display settings
+                let codeSettingsChanged = false;
+                if (expandThresholdInput) {
+                    const newThreshold = parseInt(expandThresholdInput.value) || 4000;
+                    if (newThreshold !== this.storage.expandThreshold) {
+                        this.storage.expandThreshold = newThreshold;
+                        codeSettingsChanged = true;
+                    }
+                }
+                if (maxLinesInput) {
+                    const newMaxLines = parseInt(maxLinesInput.value) || 40;
+                    if (newMaxLines !== this.storage.maxLines) {
+                        this.storage.maxLines = newMaxLines;
+                        codeSettingsChanged = true;
+                    }
+                }
+                if (fontSizeInput) {
+                    const newFontSize = parseInt(fontSizeInput.value) || 12;
+                    if (newFontSize !== this.storage.codeFontSize) {
+                        this.storage.codeFontSize = newFontSize;
+                        codeSettingsChanged = true;
+                    }
+                }
+                
+                if (codeSettingsChanged) {
+                    this.storage.saveCodeSettings();
+                }
+                
                 // Clear prettify cache if setting changed
                 if (prettifyChanged) {
                     this.ui.clearPrettifyCache();
                 }
                 
                 // Refresh display to apply changes
-                if (prettifyChanged || dedupeChanged) {
+                if (prettifyChanged || dedupeChanged || codeSettingsChanged) {
+                    // Re-highlight code blocks to apply new settings
+                    this.ui.reHighlightCodeBlocks();
                     this.refreshDisplay(false);
                 }
                 
@@ -394,17 +670,17 @@ class PopupMain {
                 importUrlsFile.click();
             });
             
-            importUrlsFile.addEventListener('change', (e) => {
+            importUrlsFile.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    this.storage.importBlockedUrls(file, (err, message) => {
+                    this.storage.importBlockedUrls(file, async (err, message) => {
                         if (err) {
                             alert('Error reading file: ' + err.message);
                         } else {
                             alert(message);
                             // Mark as manual refresh for import actions
                             this.isManualRefresh = true;
-                            this.port.postMessage("get-stuff");
+                            await this.requestData();
                         }
                     });
                 }
@@ -415,13 +691,13 @@ class PopupMain {
         // Clear URLs
         const clearUrlsBtn = document.getElementById('clear-urls-btn');
         if (clearUrlsBtn) {
-            clearUrlsBtn.addEventListener('click', () => {
+            clearUrlsBtn.addEventListener('click', async () => {
                 if (confirm('Are you sure you want to clear all blocked URLs?')) {
                     this.storage.clearBlockedUrls();
                     alert('All blocked URLs cleared');
                     // Mark as manual refresh for clear actions
                     this.isManualRefresh = true;
-                    this.port.postMessage("get-stuff");
+                    await this.requestData();
                 }
             });
         }
@@ -442,17 +718,17 @@ class PopupMain {
                 importListenersFile.click();
             });
             
-            importListenersFile.addEventListener('change', (e) => {
+            importListenersFile.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    this.storage.importBlockedListeners(file, (err, message) => {
+                    this.storage.importBlockedListeners(file, async (err, message) => {
                         if (err) {
                             alert('Error reading file: ' + err.message);
                         } else {
                             alert(message);
                             // Mark as manual refresh for import actions
                             this.isManualRefresh = true;
-                            this.port.postMessage("get-stuff");
+                            await this.requestData();
                         }
                     });
                 }
@@ -463,13 +739,13 @@ class PopupMain {
         // Clear listeners
         const clearListenersBtn = document.getElementById('clear-listeners-btn');
         if (clearListenersBtn) {
-            clearListenersBtn.addEventListener('click', () => {
+            clearListenersBtn.addEventListener('click', async () => {
                 if (confirm('Are you sure you want to clear all blocked listeners?')) {
                     this.storage.clearBlockedListeners();
                     alert('All blocked listeners cleared');
                     // Mark as manual refresh for clear actions
                     this.isManualRefresh = true;
-                    this.port.postMessage("get-stuff");
+                    await this.requestData();
                 }
             });
         }
@@ -488,6 +764,7 @@ class PopupMain {
             this.port.disconnect();
             this.port = null;
         }
+        this.isPortConnected = false;
         
         // Clear DOM cache
         this.domCache = {};

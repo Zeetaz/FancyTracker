@@ -1,4 +1,4 @@
-// Background script for FancyTracker - V3 with State Persistence Fix
+// Background script for FancyTracker - V3 with State Persistence Fix and Regex Support
 // IMPORTANT: Only persists listener data (tab_listeners, tab_listener_keys)
 // Navigation state (tab_push, tab_lasturl) is NOT persisted to avoid double-listener bugs
 // String constants for better performance and maintainability
@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
     DEDUPE_ENABLED: 'dedupeEnabled',
     BLOCKED_LISTENERS: 'blockedListeners', 
     BLOCKED_URLS: 'blockedUrls',
+    BLOCKED_REGEX: 'blockedRegex',
     LOG_URL: 'log_url'
 };
 
@@ -23,9 +24,11 @@ var tab_listener_keys = {};
 var tab_push = {}, tab_lasturl = {};
 var selectedId = -1;
 var connectedPorts = [];
-var dedupeEnabled = false;
+var dedupeEnabled = true;  // Default: enabled
 var blockedListeners = [];
 var blockedUrls = [];
+var blockedRegex = [];
+var compiledRegex = []; // Compiled regex patterns for performance
 
 // Pre-loading optimization: Keep popup data ready
 var cachedPopupData = {
@@ -131,28 +134,55 @@ class PersistentState {
 // Initialize persistent state
 const persistentState = new PersistentState();
 
+// Compile regex patterns for performance
+function compileRegexPatterns() {
+    compiledRegex = [];
+    for (const pattern of blockedRegex) {
+        try {
+            compiledRegex.push({
+                pattern: pattern,
+                regex: new RegExp(pattern, 'i') // Case insensitive by default
+            });
+        } catch (error) {
+            console.warn('FancyTracker: Invalid regex pattern:', pattern, error);
+        }
+    }
+    console.log('FancyTracker: Compiled regex patterns:', compiledRegex.length);
+}
+
 // Load settings from storage
 function loadSettings() {
-    chrome.storage.local.get([STORAGE_KEYS.DEDUPE_ENABLED, STORAGE_KEYS.BLOCKED_LISTENERS, STORAGE_KEYS.BLOCKED_URLS], (result) => {
-        dedupeEnabled = result[STORAGE_KEYS.DEDUPE_ENABLED] !== undefined ? result[STORAGE_KEYS.DEDUPE_ENABLED] : false;  // Changed from true
+    chrome.storage.local.get([STORAGE_KEYS.DEDUPE_ENABLED, STORAGE_KEYS.BLOCKED_LISTENERS, STORAGE_KEYS.BLOCKED_URLS, STORAGE_KEYS.BLOCKED_REGEX], (result) => {
+        dedupeEnabled = result[STORAGE_KEYS.DEDUPE_ENABLED] !== undefined ? result[STORAGE_KEYS.DEDUPE_ENABLED] : true;  // Default: enabled
         blockedListeners = result[STORAGE_KEYS.BLOCKED_LISTENERS] || [];
         blockedUrls = result[STORAGE_KEYS.BLOCKED_URLS] || [];
-        console.log('FancyTracker: Loaded settings - dedupe:', dedupeEnabled, 'blocked listeners:', blockedListeners.length, 'blocked URLs:', blockedUrls.length);
+        blockedRegex = result[STORAGE_KEYS.BLOCKED_REGEX] || [];
+        compileRegexPatterns();
+        console.log('FancyTracker: Loaded settings - dedupe:', dedupeEnabled, 'blocked listeners:', blockedListeners.length, 'blocked URLs:', blockedUrls.length, 'blocked regex:', blockedRegex.length);
     });
 }
 
-// Listen for storage changes to keep blocklists updated
+// Listen for storage changes to keep blocklists updated and refresh badge
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local') {
         if (changes[STORAGE_KEYS.BLOCKED_LISTENERS]) {
             blockedListeners = changes[STORAGE_KEYS.BLOCKED_LISTENERS].newValue || [];
             console.log('FancyTracker: Updated blocked listeners:', blockedListeners.length);
             updateCachedData(); // Refresh cached data when blocklist changes
+            refreshCount(); // Update badge count when blocked listeners change
         }
         if (changes[STORAGE_KEYS.BLOCKED_URLS]) {
             blockedUrls = changes[STORAGE_KEYS.BLOCKED_URLS].newValue || [];
             console.log('FancyTracker: Updated blocked URLs:', blockedUrls.length);
             updateCachedData(); // Refresh cached data when blocklist changes
+            refreshCount(); // Update badge count when blocked URLs change
+        }
+        if (changes[STORAGE_KEYS.BLOCKED_REGEX]) {
+            blockedRegex = changes[STORAGE_KEYS.BLOCKED_REGEX].newValue || [];
+            compileRegexPatterns();
+            console.log('FancyTracker: Updated blocked regex patterns:', blockedRegex.length);
+            updateCachedData(); // Refresh cached data when regex patterns change
+            refreshCount(); // Update badge count when regex patterns change
         }
     }
 });
@@ -196,17 +226,22 @@ async function initializeServiceWorker() {
     }
 }
 
+// FIXED: Count only active (non-blocked) listeners for badge
 async function refreshCount() {
     await persistentState.loadPromise;
     
-    const txt = tab_listeners[selectedId] ? tab_listeners[selectedId].length : 0;
+    // Count only non-blocked listeners
+    let activeCount = 0;
+    if (tab_listeners[selectedId]) {
+        activeCount = tab_listeners[selectedId].filter(listener => !isListenerBlocked(listener)).length;
+    }
     
     if (selectedId > 0) {
         try {
             await chrome.tabs.get(selectedId);
-            chrome.action.setBadgeText({"text": '' + txt, tabId: selectedId});
+            chrome.action.setBadgeText({"text": '' + activeCount, tabId: selectedId});
             chrome.action.setBadgeBackgroundColor({ 
-                color: txt > 0 ? [255, 0, 0, 255] : [0, 0, 255, 0], 
+                color: activeCount > 0 ? [255, 0, 0, 255] : [0, 0, 255, 0], 
                 tabId: selectedId
             });
         } catch (error) {
@@ -267,17 +302,48 @@ function generateListenerKey(listener) {
     return `${jsUrl}|${hops}|${domain}|${listenerCode}`;
 }
 
-// Extract JS URL from stack trace
+// FIXED: Strip query parameters and fragments from URLs
+function cleanUrl(url) {
+    if (!url) return url;
+    try {
+        const urlObj = new URL(url);
+        // Return just protocol + hostname + pathname (no query params or fragments)
+        return urlObj.protocol + '//' + urlObj.hostname + urlObj.pathname;
+    } catch (e) {
+        // If URL parsing fails, try basic string manipulation
+        return url.split('?')[0].split('#')[0];
+    }
+}
+
+// Extract JS URL from stack trace with query parameter stripping
 function extractJsUrlFromStack(stack, fullstack) {
     const stackLines = fullstack || (stack ? [stack] : []);
     
     for (const line of stackLines) {
         if (typeof line === 'string') {
+            // Look for URLs in parentheses first (most common format)
             const urlMatch = line.match(/\(https?:\/\/[^)]+\)/g);
             if (urlMatch) {
                 for (const match of urlMatch) {
-                    const url = match.slice(1, -1).replace(/:\d+:\d+$/, '').replace(/:\d+$/, '');
-                    return url;
+                    let url = match.slice(1, -1); // Remove parentheses
+                    // Remove line numbers and column numbers
+                    url = url.replace(/:\d+:\d+$/, '').replace(/:\d+$/, '');
+                    // Strip query parameters and fragments
+                    url = cleanUrl(url);
+                    if (url) return url;
+                }
+            }
+            
+            // Fallback: look for bare URLs starting with http
+            const bareUrlMatch = line.match(/https?:\/\/[^\s\)]+/g);
+            if (bareUrlMatch) {
+                for (const match of bareUrlMatch) {
+                    let url = match;
+                    // Remove line numbers and column numbers
+                    url = url.replace(/:\d+:\d+$/, '').replace(/:\d+$/, '');
+                    // Strip query parameters and fragments
+                    url = cleanUrl(url);
+                    if (url) return url;
                 }
             }
         }
@@ -309,16 +375,39 @@ function addListenerKey(listener, tabId) {
     tab_listener_keys[tabId].add(key);
 }
 
-// Check if listener is blocked (synchronous version)
+// Check if listener matches any regex pattern
+function isListenerMatchedByRegex(listener) {
+    if (!listener.listener || compiledRegex.length === 0) {
+        return false;
+    }
+
+    for (const compiled of compiledRegex) {
+        try {
+            if (compiled.regex.test(listener.listener)) {
+                return true;
+            }
+        } catch (error) {
+            console.warn('FancyTracker: Error testing regex pattern:', compiled.pattern, error);
+        }
+    }
+    return false;
+}
+
+// Check if listener is blocked (synchronous version) - Enhanced with regex support
 function isListenerBlocked(listener) {
     // Check if listener code is blocked
     if (blockedListeners.includes(listener.listener)) {
         return true;
     }
     
-    // Check if JS file URL is blocked
+    // Check if JS file URL is blocked (with cleaned URL)
     const jsUrl = extractJsUrlFromStack(listener.stack, listener.fullstack);
     if (jsUrl && blockedUrls.includes(jsUrl)) {
+        return true;
+    }
+    
+    // Check if listener matches any regex pattern
+    if (isListenerMatchedByRegex(listener)) {
         return true;
     }
     
@@ -389,6 +478,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             }
             console.log('FancyTracker: Dedupe setting updated to:', dedupeEnabled);
             updateCachedData(); // Refresh cached data when settings change
+            refreshCount(); // Update badge count when dedupe setting changes
             sendResponse({success: true});
             return;
         }
@@ -427,7 +517,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if (msg.log) {
             console.log('FancyTracker Log:', msg.log);
         } else {
-            refreshCount();
+            refreshCount(); // This now counts only active listeners
             if (shouldNotifyPopups) {
                 // Update cached data when new listeners are added
                 updateCachedData();
@@ -449,7 +539,7 @@ chrome.tabs.onUpdated.addListener(async function(tabId, props) {
     
     if (props.status == "complete") {
         if (tabId == selectedId) {
-            refreshCount();
+            refreshCount(); // This now counts only active listeners
             updateCachedData(); // Update cached data when page loads
         }
     } else if (props.status) {  // FIXED: Match V2 logic - trigger on ANY status change
@@ -477,7 +567,7 @@ chrome.tabs.onActivated.addListener(async function(activeInfo) {
     await persistentState.loadPromise;
     
     selectedId = activeInfo.tabId;
-    refreshCount();
+    refreshCount(); // This now counts only active listeners
     updateCachedData(); // Pre-load data for the new active tab
     notifyPopups();
 });
@@ -560,4 +650,4 @@ chrome.runtime.onInstalled.addListener(initializeServiceWorker);
 // Initialize immediately
 initializeServiceWorker();
 
-console.log('FancyTracker: Background script initialized with state persistence');
+console.log('FancyTracker: Background script initialized with state persistence and regex support');

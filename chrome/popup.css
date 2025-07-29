@@ -121,7 +121,7 @@ body {
 	background: #6b7280;
 }
 
-.highlight-btn, .show-blocked-btn {
+.highlight-btn, .show-blocked-btn, .regex-btn {
 	background: rgba(255, 255, 255, 0.1);
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	color: #374151;
@@ -169,6 +169,18 @@ body {
 .show-blocked-btn.active:hover {
 	background: rgba(16, 185, 129, 0.15);
 	border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.regex-btn {
+	background: rgba(31, 41, 55, 0.1);
+	color: #1f2937;
+	border: 1px solid rgba(31, 41, 55, 0.2);
+	min-width: 60px;
+}
+
+.regex-btn:hover {
+	background: rgba(31, 41, 55, 0.15);
+	border: 1px solid rgba(31, 41, 55, 0.3);
 }
 
 .content {
@@ -502,7 +514,106 @@ body {
 	border: 1px solid rgba(107, 114, 128, 0.3);
 }
 
-/* Settings Modal */
+/* Regex Editor Modal - Similar to Highlight Editor */
+.regex-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1000;
+	display: none;
+}
+
+.regex-modal.show {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.regex-editor {
+	background: white;
+	width: 500px;
+	max-height: 450px;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.regex-header {
+	background: #1f2937;
+	color: white;
+	padding: 12px 16px;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.regex-content {
+	flex: 1;
+	padding: 16px;
+}
+
+.regex-textarea {
+	width: 100%;
+	height: 220px;
+	font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+	font-size: 11px;
+	line-height: 1.4;
+	border: 1px solid #e5e7eb;
+	padding: 8px;
+	resize: none;
+	outline: none;
+}
+
+.regex-help {
+	font-size: 11px;
+	color: #6b7280;
+	margin-top: 8px;
+	line-height: 1.3;
+}
+
+.regex-actions {
+	padding: 12px 16px;
+	border-top: 1px solid #e5e7eb;
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.regex-btn-action {
+	padding: 6px 12px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	font-size: 11px;
+	font-weight: 500;
+	cursor: pointer;
+	border-radius: 4px;
+	transition: all 0.2s ease;
+}
+
+.regex-btn-save {
+	background: rgba(31, 41, 55, 0.1);
+	color: #1f2937;
+	border: 1px solid rgba(31, 41, 55, 0.2);
+}
+
+.regex-btn-save:hover {
+	background: rgba(31, 41, 55, 0.15);
+	border: 1px solid rgba(31, 41, 55, 0.3);
+}
+
+.regex-btn-cancel {
+	background: rgba(107, 114, 128, 0.1);
+	color: #6b7280;
+	border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.regex-btn-cancel:hover {
+	background: rgba(107, 114, 128, 0.15);
+	border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+/* Settings Modal - ORIGINAL SIZING WITH NEW LAYOUT SUPPORT */
 .settings-modal {
 	position: fixed;
 	top: 0;
@@ -522,8 +633,8 @@ body {
 
 .settings-editor {
 	background: white;
-	width: 500px;
-	max-height: 540px;
+	width: 540px;
+	max-height: 520px;
 	display: flex;
 	flex-direction: column;
 	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
@@ -568,6 +679,55 @@ body {
 }
 
 .settings-input:focus {
+	outline: none;
+	border-color: #6366f1;
+	box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.settings-row {
+	display: flex;
+	gap: 16px;
+	align-items: flex-start;
+	margin-bottom: 12px;
+}
+
+.settings-row:last-child {
+	margin-bottom: 0;
+}
+
+.settings-data-row {
+	display: flex;
+	gap: 20px;
+}
+
+.settings-data-column {
+	flex: 1;
+}
+
+/* Code display settings styles */
+.settings-input-group {
+	margin-bottom: 12px;
+	flex: 1;
+}
+
+.settings-input-label {
+	display: block;
+	font-size: 12px;
+	color: #374151;
+	margin-bottom: 4px;
+	font-weight: 500;
+}
+
+.settings-input-small {
+	width: 100%;
+	padding: 6px 8px;
+	border: 1px solid #d1d5db;
+	border-radius: 4px;
+	font-size: 12px;
+	font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+}
+
+.settings-input-small:focus {
 	outline: none;
 	border-color: #6366f1;
 	box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
@@ -670,6 +830,7 @@ body {
     gap: 8px;
     cursor: pointer;
     padding: 6px 0;
+    flex: 1;
 }
 
 .settings-checkbox {
@@ -681,6 +842,13 @@ body {
 .settings-checkbox-text {
     font-size: 12px;
     color: #374151;
+}
+
+.settings-subsection-title {
+	font-weight: 500;
+	font-size: 12px;
+	color: #6b7280;
+	margin-bottom: 6px;
 }
 
 /* Syntax highlighting styles */
