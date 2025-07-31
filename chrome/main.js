@@ -43,6 +43,8 @@
         return false;
     }
     // Check if the message contains data from ignored extensions
+    // I should probably just have kept it simple and block solely wappalyzer + domlogger?
+    // But this should allow us to just update the "extension_blacklist" with additional extensions we want blocked
     function isFromIgnoredExtension(data) {
         if (!data) return false;
 
@@ -51,13 +53,43 @@
             return true;
         }
 
+        // Every god damn extension uses different patterns...
         if (typeof data === 'object') {
+            // Method 1: Check 'ext' field (DOMLogger pattern)
+            // {ext: 'domlogger', action: 'track'}
             if (typeof data.ext === 'string') {
                 var extLower = data.ext.toLowerCase();
-                // Check against all items in extension_blacklist
                 for (var i = 0; i < extension_blacklist.length; i++) {
                     if (extLower.includes(extension_blacklist[i].toLowerCase())) {
                         return true;
+                    }
+                }
+            }
+            
+            // Method 2: Check top-level keys (Wappalyzer pattern)  
+            // {"wappalyzer": {...}}
+            for (var key in data) {
+                if (data.hasOwnProperty(key)) {
+                    var keyLower = key.toLowerCase();
+                    for (var i = 0; i < extension_blacklist.length; i++) {
+                        if (keyLower.includes(extension_blacklist[i].toLowerCase())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            // Method 3 (Kamikaze): Check common sender/source field values (Bitwarden pattern)
+            // {"SENDER": "bitwarden-webauthn", ...}
+            var senderFields = ['SENDER', 'sender', 'source', 'from', 'origin', 'extension', 'ext_id'];
+            for (var j = 0; j < senderFields.length; j++) {
+                var fieldValue = data[senderFields[j]];
+                if (typeof fieldValue === 'string') {
+                    var valueLower = fieldValue.toLowerCase();
+                    for (var i = 0; i < extension_blacklist.length; i++) {
+                        if (valueLower.includes(extension_blacklist[i].toLowerCase())) {
+                            return true;
+                        }
                     }
                 }
             }
