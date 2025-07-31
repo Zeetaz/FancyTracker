@@ -19,6 +19,7 @@
         'react-devtools',
         'vue-devtools',
         'domlogger',
+        'bitwarden-webauthn',
         'POSTMESSAGE_TRACKER_DATA',
         'FancyTracker:',
         '__postmessagetrackername__'
@@ -52,8 +53,13 @@
 
         if (typeof data === 'object') {
             if (typeof data.ext === 'string') {
-                data.ext = data.ext.toLowerCase();
-                if (data.ext.includes('domlogger')) return true;
+                var extLower = data.ext.toLowerCase();
+                // Check against all items in extension_blacklist
+                for (var i = 0; i < extension_blacklist.length; i++) {
+                    if (extLower.includes(extension_blacklist[i].toLowerCase())) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
