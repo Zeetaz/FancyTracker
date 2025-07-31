@@ -41,6 +41,23 @@
         }
         return false;
     }
+    // Check if the message contains data from ignored extensions
+    function isFromIgnoredExtension(data) {
+        if (!data) return false;
+
+        // Skip our own tracking messages
+        if (data.type === 'POSTMESSAGE_TRACKER_DATA') {
+            return true;
+        }
+
+        if (typeof data === 'object') {
+            if (typeof data.ext === 'string') {
+                data.ext = data.ext.toLowerCase();
+                if (data.ext.includes('domlogger')) return true;
+            }
+        }
+        return false;
+    }
     
     // Send message to bridge
     var m = function(detail) {
@@ -217,6 +234,11 @@
     // Console logging functions
     var onmsgport = function(e) {
         try {
+            // Skip messages from ignored extensions
+            if (isFromIgnoredExtension(e.data)) {
+                return;
+            }
+
             var p = (e.ports && e.ports.length ? '%cport' + e.ports.length + '%c ' : '');
             var msg = '%cport%c→%c' + h(e.source) + '%c ' + p + (typeof e.data == 'string' ? e.data : 'j ' + JSON.stringify(e.data));
             if (p.length) {
@@ -231,8 +253,8 @@
     
     var onmsg = function(e) {
         try {
-            // Skip our own tracking messages
-            if (e.data && e.data.type === 'POSTMESSAGE_TRACKER_DATA') {
+            // Skip messages from ignored extensions
+            if (isFromIgnoredExtension(e.data)) {
                 return;
             }
             
