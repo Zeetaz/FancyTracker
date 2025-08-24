@@ -126,7 +126,7 @@ class PopupStorage {
     loadCodeSettings() {
         return new Promise((resolve) => {
             chrome.storage.local.get(['expandThreshold', 'maxLines', 'codeFontSize'], (result) => {
-                this.expandThreshold = result.expandThreshold || 2000;
+                this.expandThreshold = result.expandThreshold || 4000;
                 this.maxLines = result.maxLines || 40;
                 this.codeFontSize = result.codeFontSize || 12;
                 resolve();
