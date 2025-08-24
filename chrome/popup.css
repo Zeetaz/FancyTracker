@@ -348,6 +348,50 @@ body {
 	position: relative;
 }
 
+/* NEW: Highlight.js integration styles */
+.code-block.hljs {
+	background: #f8fafc !important;
+	color: #1f2937 !important;
+}
+
+.code-block .hljs-keyword {
+	color: #7c3aed !important;
+	font-weight: 600;
+}
+
+.code-block .hljs-string {
+	color: #059669 !important;
+}
+
+.code-block .hljs-number {
+	color: #dc2626 !important;
+}
+
+.code-block .hljs-comment {
+	color: #6b7280 !important;
+	font-style: italic;
+}
+
+.code-block .hljs-function {
+	color: #2563eb !important;
+}
+
+.code-block .hljs-variable {
+	color: #b45309 !important;
+}
+
+.code-block .hljs-property {
+	color: #7c2d12 !important;
+}
+
+.code-block .hljs-built_in {
+	color: #9333ea !important;
+}
+
+.code-block .hljs-literal {
+	color: #0891b2 !important;
+}
+
 .code-block.truncated {
 	max-height: 80px;
 	overflow: hidden;
@@ -851,33 +895,54 @@ body {
 	margin-bottom: 6px;
 }
 
-/* Syntax highlighting styles */
+/* Syntax highlighting styles - UPDATED for better layering */
 .highlight-red { 
-	background-color: #fecaca; 
-	color: #dc2626; 
+	background-color: #fecaca !important; 
+	color: #dc2626 !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
 }
 
 .highlight-green { 
-	background-color: #bbf7d0; 
-	color: #16a34a; 
+	background-color: #bbf7d0 !important; 
+	color: #16a34a !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
 }
 
 .highlight-blue { 
-	background-color: #bfdbfe; 
-	color: #2563eb; 
+	background-color: #bfdbfe !important; 
+	color: #2563eb !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
 }
 
 .highlight-yellow { 
-	background-color: #fef3c7; 
-	color: #d97706; 
+	background-color: #fef3c7 !important; 
+	color: #d97706 !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
 }
 
 .highlight-purple { 
-	background-color: #e9d5ff; 
-	color: #9333ea; 
+	background-color: #e9d5ff !important; 
+	color: #9333ea !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
 }
 
 .highlight-pink { 
-	background-color: #fbcfe8; 
-	color: #ec4899; 
+	background-color: #fbcfe8 !important; 
+	color: #ec4899 !important;
+	padding: 1px 2px !important;
+	border-radius: 2px !important;
+}
+
+/* Ensure custom highlighting is very visible on top of syntax highlighting */
+.custom-highlight {
+	position: relative;
+	z-index: 2;
+	font-weight: 700 !important;
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1) !important;
+	display: inline !important;
 }

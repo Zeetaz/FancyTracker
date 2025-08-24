@@ -1,18 +1,54 @@
-// UI utilities and DOM manipulation for FancyTracker - Optimized Version
+// UI utilities and DOM manipulation for FancyTracker - Optimized Version with Local Highlight.js
 class PopupUI {
     constructor(storage) {
         this.storage = storage;
         this.showBlockedOnly = false;
-        this.prettifyCache = new Map(); // Cache prettified results
-        this.maxPrettifySize = 10000; // Don't prettify code larger than 10KB
-        this.maxCacheSize = 100; // Limit cache size to prevent memory bloat
+        this.prettifyCache = new Map();
+        this.maxPrettifySize = 10000;
+        this.maxCacheSize = 100;
         
-        // Pre-compiled regexes for better performance
         this.URL_REGEX = /\(https?:\/\/[^)]+\)/g;
         this.LINE_ENDING_REGEX = /:\d+:\d+$|:\d+$/;
+        
+        this.initHighlightJs();
     }
 
-    // Format URL for display
+    initHighlightJs() {
+        if (typeof hljs !== 'undefined') {
+            console.log('FancyTracker: Local highlight.js is available');
+            this.highlightJsAvailable = true;
+            hljs.configure({
+                languages: ['javascript', 'js'],
+                ignoreUnescapedHTML: true
+            });
+        } else {
+            console.error('FancyTracker: Local highlight.js not found!');
+            this.highlightJsAvailable = false;
+        }
+    }
+
+    applySyntaxHighlighting(codeElement, code) {
+        if (!this.highlightJsAvailable || !this.storage.syntaxHighlightEnabled) {
+            return false;
+        }
+
+        try {
+            codeElement.className = codeElement.className.replace(/hljs[^\s]*/g, '').trim();
+            codeElement.textContent = code;
+            hljs.highlightElement(codeElement);
+            return true;
+        } catch (error) {
+            console.error('FancyTracker: Error applying syntax highlighting:', error);
+            return false;
+        }
+    }
+
+
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     formatUrl(url) {
         try {
             const urlObj = new URL(url);
@@ -22,7 +58,6 @@ class PopupUI {
         }
     }
 
-    // Format URL for display with truncation
     formatUrlForDisplay(url) {
         try {
             const urlObj = new URL(url);
@@ -33,46 +68,36 @@ class PopupUI {
         }
     }
 
-    // Optimized prettify with caching and size limits
     prettifyJavaScript(code) {
         if (!code || typeof code !== 'string') return code;
         
-        // Skip prettification for very large code blocks
         if (code.length > this.maxPrettifySize) {
-            console.log('FancyTracker: Skipping prettification for large code block:', code.length, 'chars');
             return code;
         }
         
-        // Check cache first
         if (this.prettifyCache.has(code)) {
             return this.prettifyCache.get(code);
         }
         
-        // Limit cache size to prevent memory bloat
         if (this.prettifyCache.size >= this.maxCacheSize) {
-            // Remove oldest entries (FIFO)
             const firstKey = this.prettifyCache.keys().next().value;
             this.prettifyCache.delete(firstKey);
         }
         
         const result = this.prettifyJavaScriptCore(code);
-        
-        // Cache the result
         this.prettifyCache.set(code, result);
         return result;
     }
     
-    // Core prettification logic (separated for clarity)
     prettifyJavaScriptCore(code) {
         let indentLevel = 0;
-        const indentString = '    '; // 4 spaces
+        const indentString = '    ';
         let inString = false;
         let stringChar = '';
         let lines = [];
         let currentLine = '';
         
-        // Use a more efficient approach for large strings
-        const chars = Array.from(code); // Handle unicode correctly
+        const chars = Array.from(code);
         const length = chars.length;
         
         for (let i = 0; i < length; i++) {
@@ -80,7 +105,6 @@ class PopupUI {
             const nextChar = chars[i + 1];
             const prevChar = chars[i - 1];
             
-            // Handle string literals
             if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
                 if (!inString) {
                     inString = true;
@@ -93,13 +117,11 @@ class PopupUI {
                 continue;
             }
             
-            // Skip formatting inside strings
             if (inString) {
                 currentLine += char;
                 continue;
             }
             
-            // Handle different characters
             switch (char) {
                 case '{':
                     currentLine += char;
@@ -145,23 +167,17 @@ class PopupUI {
             }
         }
         
-        // Add any remaining content
         if (currentLine.trim()) {
             lines.push(indentString.repeat(indentLevel) + currentLine.trim());
         }
         
-        // Clean up empty lines and join
-        return lines
-            .filter(line => line.trim() !== '')
-            .join('\n');
+        return lines.filter(line => line.trim() !== '').join('\n');
     }
 
-    // Clear cache when needed (call this when switching prettify on/off)
     clearPrettifyCache() {
         this.prettifyCache.clear();
     }
 
-    // HTML utility functions
     htmlDecode(text) {
         const textarea = document.createElement('textarea');
         textarea.innerHTML = text;
@@ -177,7 +193,6 @@ class PopupUI {
             .replace(/'/g, '&#39;');
     }
 
-    // Parse highlight rules text
     parseHighlightText(text) {
         const rules = {};
         const lines = text.split('\n');
@@ -187,7 +202,6 @@ class PopupUI {
             const trimmedLine = line.trim();
             if (!trimmedLine) continue;
             
-            // Check for color definition [colorname]
             const colorMatch = trimmedLine.match(/^\[(\w+)\]$/);
             if (colorMatch) {
                 currentColor = colorMatch[1].toLowerCase();
@@ -197,26 +211,23 @@ class PopupUI {
                 continue;
             }
             
-            // Add terms to current color
             if (currentColor && trimmedLine) {
                 const terms = trimmedLine.split(',').map(term => term.trim()).filter(term => term);
                 rules[currentColor].push(...terms);
             }
         }
         
+        console.log('FancyTracker: Parsed highlight rules:', rules);
         return rules;
     }
 
-    // Apply syntax highlighting to code
     applyHighlighting(text, rules) {
         if (!rules || Object.keys(rules).length === 0) {
             return this.htmlEscape(text);
         }
         
-        // Step 1: Decode HTML entities to get clean text
         const cleanText = this.htmlDecode(text);
         
-        // Step 2: Collect all terms and sort by length (longest first)
         const allTerms = [];
         for (const [color, terms] of Object.entries(rules)) {
             for (const term of terms) {
@@ -227,7 +238,6 @@ class PopupUI {
         }
         allTerms.sort((a, b) => b.term.length - a.term.length);
         
-        // Step 3: Replace terms with unique placeholders
         let result = cleanText;
         const replacements = [];
         
@@ -236,11 +246,10 @@ class PopupUI {
             result = result.split(item.term).join(placeholder);
             replacements.push({
                 placeholder: placeholder,
-                html: `<span class="highlight-${item.color}">${this.htmlEscape(item.term)}</span>`
+                html: `<span class="highlight-${item.color} custom-highlight">${this.htmlEscape(item.term)}</span>`
             });
         });
         
-        // Step 4: HTML escape everything, then replace placeholders with HTML
         result = this.htmlEscape(result);
         replacements.forEach(({ placeholder, html }) => {
             result = result.split(this.htmlEscape(placeholder)).join(html);
@@ -249,55 +258,43 @@ class PopupUI {
         return result;
     }
 
-    // Add expand/collapse functionality to code blocks
     addExpandFunctionality(codeBlock) {
-        // Remove existing indicator and click handler
         const existingIndicator = codeBlock.querySelector('.expand-indicator');
         if (existingIndicator) {
             existingIndicator.remove();
         }
         codeBlock.onclick = null;
         
-        // Add new expand indicator
         const expandIndicator = document.createElement('div');
         expandIndicator.className = 'expand-indicator';
         expandIndicator.textContent = 'expand';
         codeBlock.appendChild(expandIndicator);
         
-        // Add click handler for the entire code block (expand only)
         codeBlock.onclick = (e) => {
             const indicator = codeBlock.querySelector('.expand-indicator');
             
-            // If clicking the indicator when expanded, collapse
             if (e.target === indicator && !codeBlock.classList.contains('truncated')) {
                 codeBlock.classList.add('truncated');
                 indicator.textContent = 'expand';
-            }
-            // If clicking anywhere when collapsed, expand
-            else if (codeBlock.classList.contains('truncated')) {
+            } else if (codeBlock.classList.contains('truncated')) {
                 codeBlock.classList.remove('truncated');
                 indicator.textContent = 'collapse';
             }
         };
     }
 
-    // FIXED: Increased thresholds for expand functionality
     shouldTruncateCode(originalCode, displayCode) {
-        // Use storage settings for thresholds
         return displayCode.length > this.storage.expandThreshold || 
                displayCode.split('\n').length > this.storage.maxLines;
     }
 
-    // Create listener DOM element with optimized rendering
     createListenerElement(listener, index, onRefresh) {
         const item = document.createElement('div');
         item.className = 'listener-item';
 
-        // Header section with info and actions
         const header = document.createElement('div');
         header.className = 'listener-header';
         
-        // Left side - listener info
         const listenerInfo = document.createElement('div');
         listenerInfo.className = 'listener-info';
         
@@ -310,8 +307,7 @@ class PopupUI {
         const domain = listener.domain || 'unknown';
         domainName.textContent = domain;
         
-        // Only add tooltip and help cursor if text is actually truncated
-        if (domain.length > 20) { // Approximate truncation threshold
+        if (domain.length > 20) {
             domainName.title = domain;
             domainName.style.cursor = 'help';
         }
@@ -319,22 +315,18 @@ class PopupUI {
         const windowInfo = document.createElement('div');
         windowInfo.className = 'window-info';
         
-        // Clean up window text - extract just the frame path, filter out JSON data
         let windowText = (listener.window ? listener.window + ' ' : '') + 
                         (listener.hops && listener.hops.length ? listener.hops : 'direct');
         
-        // Remove URL-encoded JSON data (starts with %7B and contains frame path after)
         windowText = windowText.replace(/%7B[^}]*%7D\s*/g, '').trim();
         
-        // If nothing left after cleanup, default to 'direct'
         if (!windowText || windowText === '') {
             windowText = 'direct';
         }
         
         windowInfo.textContent = windowText;
         
-        // Only add tooltip if text might be truncated
-        if (windowText.length > 25) { // Approximate truncation threshold
+        if (windowText.length > 25) {
             windowInfo.title = windowText;
             windowInfo.style.cursor = 'help';
         }
@@ -343,14 +335,12 @@ class PopupUI {
         listenerInfo.appendChild(domainName);
         listenerInfo.appendChild(windowInfo);
         
-        // Right side - action buttons
         const listenerActions = document.createElement('div');
         listenerActions.className = 'listener-actions';
         
         const blockInfo = this.storage.isListenerBlocked(listener);
         
         if (blockInfo && this.showBlockedOnly) {
-            // Show unblock button when viewing blocked items
             const unblockBtn = document.createElement('button');
             unblockBtn.className = 'unblock-btn';
             
@@ -372,13 +362,11 @@ class PopupUI {
                 unblockBtn.onclick = async (e) => {
                     e.stopPropagation();
                     this.storage.removeFromBlocklist(blockInfo.type, blockInfo.value);
-                    // Trigger refresh with badge update - now async
                     await onRefresh();
                 };
             }
             listenerActions.appendChild(unblockBtn);
         } else if (!blockInfo && !this.showBlockedOnly) {
-            // Show block buttons when item is not blocked
             const blockBtn = document.createElement('button');
             blockBtn.className = 'block-btn';
             blockBtn.innerHTML = '&#8856; Block';
@@ -386,47 +374,31 @@ class PopupUI {
             blockBtn.onclick = async (e) => {
                 e.stopPropagation();
                 this.storage.addToBlocklist('listener', listener.listener);
-                // Trigger refresh with badge update - now async
                 await onRefresh();
             };
             
-            // FIXED: Allow blocking of any URL - removed HTTP/HTTPS restriction
             const jsUrl = this.storage.extractJsUrlFromStack(listener.stack, listener.fullstack);
             
             const blockUrlBtn = document.createElement('button');
             blockUrlBtn.className = 'block-btn';
             blockUrlBtn.innerHTML = '&#128279; Block URL';
             
-            // Debug logging to help diagnose URL detection issues
-            console.log('FancyTracker: URL detection debug:', {
-                stack: listener.stack,
-                fullstack: listener.fullstack,
-                extractedUrl: jsUrl
-            });
-            
             if (jsUrl && jsUrl.length > 0) {
-                // We found a URL to block (any protocol is allowed)
                 blockUrlBtn.title = `Block all listeners from: ${this.formatUrlForDisplay(jsUrl)}`;
                 blockUrlBtn.disabled = false;
                 blockUrlBtn.style.opacity = '1';
                 blockUrlBtn.style.cursor = 'pointer';
                 blockUrlBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    console.log('Blocking URL:', jsUrl);
                     this.storage.addToBlocklist('url', jsUrl);
-                    // Trigger refresh with badge update - now async
                     await onRefresh();
                 };
             } else {
-                // No URL found, disable the button
                 blockUrlBtn.title = 'No JavaScript file detected in stack trace';
                 blockUrlBtn.disabled = true;
                 blockUrlBtn.style.opacity = '0.5';
                 blockUrlBtn.style.cursor = 'not-allowed';
-                blockUrlBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    // Do nothing
-                };
+                blockUrlBtn.onclick = (e) => e.stopPropagation();
             }
             
             listenerActions.appendChild(blockBtn);
@@ -436,7 +408,6 @@ class PopupUI {
         header.appendChild(listenerInfo);
         header.appendChild(listenerActions);
 
-        // Stack section
         const stackSection = document.createElement('div');
         stackSection.className = 'stack-section';
         
@@ -450,31 +421,25 @@ class PopupUI {
         
         stackSection.appendChild(stackTrace);
 
-        // Code section - with configurable font size
         const codeSection = document.createElement('div');
         codeSection.className = 'code-section';
         
         const codeBlock = document.createElement('div');
         codeBlock.className = 'code-block';
-        
-        // Apply configurable font size
         codeBlock.style.fontSize = `${this.storage.codeFontSize}px`;
         
         const originalCode = listener.listener || 'function() { /* code not available */ }';
         let displayCode = originalCode;
         
-        // Apply prettification if enabled
         if (this.storage.prettifyEnabled) {
             displayCode = this.prettifyJavaScript(originalCode);
         }
 
-        // Store ORIGINAL text (not processed) for later re-processing
         codeBlock.setAttribute('data-original-text', originalCode);
         
-        // Apply highlighting to display code
-        codeBlock.innerHTML = this.applyHighlighting(displayCode, this.storage.highlightRules);
+        // NEW APPROACH: Apply highlighting in the correct order to prevent interference
+        this.applyAllHighlighting(codeBlock, displayCode);
         
-        // Add expand functionality based on display code
         if (this.shouldTruncateCode(originalCode, displayCode)) {
             codeBlock.classList.add('truncated');
             this.addExpandFunctionality(codeBlock);
@@ -488,7 +453,93 @@ class PopupUI {
         return item;
     }
 
-    // Update show blocked button state
+    // NEW METHOD: Apply all highlighting in the correct order
+    applyAllHighlighting(codeBlock, displayCode) {
+        const hasCustomRules = this.storage.highlightRules && Object.keys(this.storage.highlightRules).length > 0;
+        const hasSyntaxHighlighting = this.storage.syntaxHighlightEnabled && this.highlightJsAvailable;
+        
+        console.log('FancyTracker: Applying highlighting - Custom rules:', hasCustomRules, 'Syntax highlighting:', hasSyntaxHighlighting);
+        
+        if (!hasCustomRules && !hasSyntaxHighlighting) {
+            // No highlighting at all
+            codeBlock.textContent = displayCode;
+            return;
+        }
+        
+        if (!hasCustomRules && hasSyntaxHighlighting) {
+            // Only syntax highlighting
+            this.applySyntaxHighlighting(codeBlock, displayCode);
+            return;
+        }
+        
+        if (hasCustomRules && !hasSyntaxHighlighting) {
+            // Only custom highlighting
+            codeBlock.innerHTML = this.applyHighlighting(displayCode, this.storage.highlightRules);
+            return;
+        }
+        
+        // Both custom and syntax highlighting - this is the tricky case
+        // Strategy: Apply custom highlighting first with special markers, then syntax highlighting, then convert markers
+        console.log('FancyTracker: Applying both custom and syntax highlighting');
+        
+        // Step 1: Apply custom highlighting with placeholders
+        const customHighlighted = this.applyCustomHighlightingWithPlaceholders(displayCode, this.storage.highlightRules);
+        
+        // Step 2: Apply syntax highlighting (this will process the placeholders as regular text)
+        codeBlock.textContent = customHighlighted;
+        this.applySyntaxHighlighting(codeBlock, customHighlighted);
+        
+        // Step 3: Convert placeholders back to actual highlight spans
+        const finalHtml = this.convertPlaceholdersToHighlights(codeBlock.innerHTML);
+        codeBlock.innerHTML = finalHtml;
+    }
+    
+    // Apply custom highlighting using placeholders that survive syntax highlighting
+    applyCustomHighlightingWithPlaceholders(text, rules) {
+        if (!rules || Object.keys(rules).length === 0) {
+            return text;
+        }
+        
+        const allTerms = [];
+        for (const [color, terms] of Object.entries(rules)) {
+            for (const term of terms) {
+                if (term && term.trim()) {
+                    allTerms.push({ term: term.trim(), color });
+                }
+            }
+        }
+        
+        allTerms.sort((a, b) => b.term.length - a.term.length);
+        
+        let result = text;
+        let placeholderIndex = 0;
+        
+        allTerms.forEach((item) => {
+            const term = item.term;
+            const color = item.color;
+            const escapedTerm = this.escapeRegex(term);
+            const regex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi');
+            
+            result = result.replace(regex, (match) => {
+                const placeholder = `__CUSTOM_HIGHLIGHT_${placeholderIndex}_${color}__${match}__END_CUSTOM_HIGHLIGHT_${placeholderIndex}__`;
+                placeholderIndex++;
+                return placeholder;
+            });
+        });
+        
+        return result;
+    }
+    
+    // Convert placeholders back to actual highlight spans
+    convertPlaceholdersToHighlights(html) {
+        // Find all placeholders in the syntax-highlighted HTML
+        const placeholderRegex = /__CUSTOM_HIGHLIGHT_(\d+)_([^_]+)__(.+?)__END_CUSTOM_HIGHLIGHT_\1__/g;
+        
+        return html.replace(placeholderRegex, (match, index, color, content) => {
+            return `<span class="highlight-${color} custom-highlight">${content}</span>`;
+        });
+    }
+
     updateShowBlockedButton() {
         const showBlockedBtn = document.getElementById('show-blocked-btn');
         if (showBlockedBtn) {
@@ -502,72 +553,205 @@ class PopupUI {
         }
     }
 
-    // Toggle show blocked mode
     toggleShowBlocked() {
         this.showBlockedOnly = !this.showBlockedOnly;
         this.updateShowBlockedButton();
     }
 
-    // Re-highlight all code blocks with current rules
-    reHighlightCodeBlocks() {
-        document.querySelectorAll('.code-block').forEach(codeBlock => {
+    // OPTIMIZED: Better re-highlighting that preserves syntax highlighting when possible
+    reHighlightCodeBlocks(forceRebuildSyntax = false) {
+        console.log('FancyTracker: Re-highlighting all code blocks, force rebuild syntax:', forceRebuildSyntax);
+        console.log('FancyTracker: Current highlight rules:', this.storage.highlightRules);
+        console.log('FancyTracker: Syntax highlighting enabled:', this.storage.syntaxHighlightEnabled);
+        
+        document.querySelectorAll('.code-block').forEach((codeBlock, index) => {
             const originalText = codeBlock.getAttribute('data-original-text');
             if (originalText) {
+                console.log(`FancyTracker: Re-highlighting code block ${index + 1}`);
                 const wasExpanded = !codeBlock.classList.contains('truncated');
                 
-                // Apply prettification if enabled
                 let displayCode = originalText;
                 if (this.storage.prettifyEnabled) {
                     displayCode = this.prettifyJavaScript(originalText);
                 }
                 
-                // Apply highlighting to the processed code
-                codeBlock.innerHTML = this.applyHighlighting(displayCode, this.storage.highlightRules);
+                if (forceRebuildSyntax) {
+                    // Full rebuild needed (syntax highlighting settings changed)
+                    console.log('FancyTracker: Full rebuild - clearing existing highlighting');
+                    codeBlock.className = codeBlock.className.replace(/hljs[^\s]*/g, '').trim();
+                    this.applyAllHighlighting(codeBlock, displayCode);
+                } else {
+                    // Only custom highlighting changed - preserve syntax highlighting
+                    console.log('FancyTracker: Optimized rebuild - preserving syntax highlighting');
+                    this.updateCustomHighlightingOnly(codeBlock, displayCode);
+                }
                 
-                // Update font size
+                // Apply font size and truncation
                 codeBlock.style.fontSize = `${this.storage.codeFontSize}px`;
                 
-                // Restore expand state and functionality based on display code
                 if (this.shouldTruncateCode(originalText, displayCode)) {
                     codeBlock.classList.toggle('truncated', !wasExpanded);
                     this.addExpandFunctionality(codeBlock);
                 }
             }
         });
+        
+        console.log('FancyTracker: Re-highlighting complete');
     }
 
-    // Optimized display listeners method with better DOM manipulation
+    // NEW METHOD: Update only custom highlighting without affecting syntax highlighting
+    updateCustomHighlightingOnly(codeBlock, displayCode) {
+        const hasCustomRules = this.storage.highlightRules && Object.keys(this.storage.highlightRules).length > 0;
+        const hasSyntaxHighlighting = this.storage.syntaxHighlightEnabled && this.highlightJsAvailable;
+        
+        // Remove existing custom highlights while preserving syntax highlighting
+        this.removeExistingCustomHighlights(codeBlock);
+        
+        if (!hasCustomRules) {
+            // No custom rules, we're done (syntax highlighting is preserved)
+            console.log('FancyTracker: No custom rules, keeping existing content');
+            return;
+        }
+        
+        if (hasSyntaxHighlighting && this.hasExistingSyntaxHighlighting(codeBlock)) {
+            // Apply custom highlighting on top of existing syntax highlighting
+            console.log('FancyTracker: Applying custom highlighting on existing syntax highlighting');
+            const currentHtml = codeBlock.innerHTML;
+            const withCustomHighlighting = this.applyCustomHighlightingOnExistingHtml(currentHtml, this.storage.highlightRules);
+            codeBlock.innerHTML = withCustomHighlighting;
+        } else {
+            // No existing syntax highlighting, apply custom highlighting on plain text
+            console.log('FancyTracker: Applying custom highlighting on plain text');
+            codeBlock.innerHTML = this.applyHighlighting(displayCode, this.storage.highlightRules);
+        }
+    }
+
+    // Remove existing custom highlights while preserving other HTML
+    removeExistingCustomHighlights(codeBlock) {
+        // Find all existing custom highlight spans and unwrap them
+        const customHighlights = codeBlock.querySelectorAll('.custom-highlight');
+        customHighlights.forEach(span => {
+            // Move the span's contents to its parent and remove the span
+            while (span.firstChild) {
+                span.parentNode.insertBefore(span.firstChild, span);
+            }
+            span.parentNode.removeChild(span);
+        });
+    }
+
+    // Check if the code block has existing syntax highlighting
+    hasExistingSyntaxHighlighting(codeBlock) {
+        return codeBlock.querySelector('.hljs-keyword, .hljs-string, .hljs-number, .hljs-comment') !== null;
+    }
+
+    // Apply custom highlighting on existing HTML (better approach that finds specific terms)
+    applyCustomHighlightingOnExistingHtml(htmlContent, rules) {
+        if (!rules || Object.keys(rules).length === 0) {
+            return htmlContent;
+        }
+        
+        console.log('FancyTracker: Applying custom highlighting on existing HTML');
+        
+        // Get the plain text to find matches
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        
+        // Collect all terms with their colors
+        const allTerms = [];
+        for (const [color, terms] of Object.entries(rules)) {
+            for (const term of terms) {
+                if (term && term.trim()) {
+                    allTerms.push({ term: term.trim(), color });
+                }
+            }
+        }
+        
+        // Sort by length (longest first) to avoid partial matches
+        allTerms.sort((a, b) => b.term.length - a.term.length);
+        
+        if (allTerms.length === 0) {
+            return htmlContent;
+        }
+        
+        let result = htmlContent;
+        
+        // For each term that exists in the plain text, apply highlighting
+        allTerms.forEach((item) => {
+            const term = item.term;
+            const color = item.color;
+            const escapedTerm = this.escapeRegex(term);
+            const plainTextRegex = new RegExp(`\\b${escapedTerm}\\b`, 'gi');
+            
+            if (plainTextRegex.test(plainText)) {
+                console.log(`FancyTracker: Highlighting term "${term}" in existing HTML`);
+                
+                // Use a more sophisticated approach for existing HTML
+                result = this.wrapTermInExistingHtml(result, term, color);
+            }
+        });
+        
+        return result;
+    }
+
+    // Wrap a specific term in existing HTML with highlight spans
+    wrapTermInExistingHtml(htmlContent, term, color) {
+        // Strategy: Use a placeholder approach on the existing HTML
+        const placeholder = `___TEMP_HIGHLIGHT_${color}___`;
+        const endPlaceholder = `___END_TEMP_HIGHLIGHT_${color}___`;
+        
+        // First, try simple term replacement
+        const escapedTerm = this.escapeRegex(term);
+        const simpleRegex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi');
+        
+        // Replace in text content while preserving HTML structure
+        let result = htmlContent;
+        
+        // Split HTML into segments and only process text segments
+        const segments = result.split(/(<[^>]+>)/);
+        
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            
+            // Only process text segments (not HTML tags)
+            if (!segment.startsWith('<') && segment.trim() !== '') {
+                // Apply highlighting to this text segment
+                segments[i] = segment.replace(simpleRegex, `${placeholder}$1${endPlaceholder}`);
+            }
+        }
+        
+        result = segments.join('');
+        
+        // Convert placeholders to actual highlight spans
+        const finalRegex = new RegExp(`${this.escapeRegex(placeholder)}(.*?)${this.escapeRegex(endPlaceholder)}`, 'gi');
+        result = result.replace(finalRegex, `<span class="highlight-${color} custom-highlight">$1</span>`);
+        
+        return result;
+    }
+
     displayListeners(listeners, currentUrl, onRefresh, preserveScroll = false) {
         try {
-            // Use requestAnimationFrame for smooth updates
             requestAnimationFrame(() => {
-                // Save scroll position if preserving
                 let savedScrollTop = 0;
                 const contentElement = document.querySelector('.content');
                 if (preserveScroll && contentElement) {
                     savedScrollTop = contentElement.scrollTop;
-                    console.log('FancyTracker: Saving scroll position:', savedScrollTop);
                 }
 
-                // Update header URL
                 const headerElement = document.getElementById('h');
                 if (headerElement) {
                     headerElement.textContent = this.formatUrl(currentUrl);
                 }
 
-                // Filter listeners based on showBlockedOnly setting
                 let filteredListeners = listeners;
                 if (listeners) {
                     if (this.showBlockedOnly) {
-                        // Show only blocked listeners
                         filteredListeners = listeners.filter(listener => this.storage.isListenerBlocked(listener));
                     } else {
-                        // Show only unblocked listeners (default behavior)
                         filteredListeners = listeners.filter(listener => !this.storage.isListenerBlocked(listener));
                     }
                 }
 
-                // Update listener count and status
                 const countElement = document.getElementById('listener-count');
                 const statusElement = document.getElementById('status-badge');
                 
@@ -598,16 +782,12 @@ class PopupUI {
                     }
                 }
 
-                // Clear existing content and rebuild efficiently
                 const container = document.getElementById('x');
                 if (!container) return;
                 
-                // Use innerHTML = '' for faster clearing of large content
                 container.innerHTML = '';
 
-                // Show listeners or empty state
                 if (filteredListeners && filteredListeners.length > 0) {
-                    // Create elements in memory first using DocumentFragment, then append all at once
                     const fragment = document.createDocumentFragment();
                     
                     for(let i = 0; i < filteredListeners.length; i++) {
@@ -616,15 +796,12 @@ class PopupUI {
                         fragment.appendChild(listenerElement);
                     }
                     
-                    // Single DOM append for better performance
                     container.appendChild(fragment);
                 } else {
-                    // Show empty state
                     const emptyState = document.createElement('div');
                     emptyState.className = 'empty-state';
                     
                     if (this.showBlockedOnly) {
-                        // No blocked listeners
                         emptyState.innerHTML = `
                             <div class="empty-title">No blocked listeners</div>
                             <div class="empty-description">
@@ -633,7 +810,6 @@ class PopupUI {
                             </div>
                         `;
                     } else {
-                        // No active listeners
                         const totalCount = listeners ? listeners.length : 0;
                         const blockedCount = listeners ? listeners.filter(listener => this.storage.isListenerBlocked(listener)).length : 0;
                         
@@ -658,12 +834,9 @@ class PopupUI {
                     container.appendChild(emptyState);
                 }
 
-                // Restore scroll position if preserving
                 if (preserveScroll && contentElement && savedScrollTop > 0) {
-                    // Use setTimeout to ensure DOM is fully updated
                     setTimeout(() => {
                         contentElement.scrollTop = savedScrollTop;
-                        console.log('FancyTracker: Restored scroll position:', savedScrollTop);
                     }, 0);
                 }
             });

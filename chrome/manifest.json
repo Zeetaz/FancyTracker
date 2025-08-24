@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FancyTracker",
   "description": "PostMessage listener tracker and analyzer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Zettergren",
   "homepage_url": "https://github.com/Zeetaz/FancyTracker",
   "icons": {

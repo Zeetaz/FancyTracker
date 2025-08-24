@@ -4,6 +4,10 @@
 	<meta charset="utf-8">
 	<title>FancyTracker</title>
 	<link rel="stylesheet" href="popup.css">
+	<!-- Load local highlight.js CSS -->
+	<link rel="stylesheet" href="lib/github.css">
+	<!-- Load local highlight.js JavaScript -->
+	<script src="lib/highlight.min.js"></script>
 	<script type="text/javascript" src="popup-storage.js"></script>
 	<script type="text/javascript" src="popup-ui.js"></script>
 	<script type="text/javascript" src="popup-main.js"></script>
@@ -101,7 +105,7 @@ Whatever, prob not those though."
 		</div>
 	</div>
 
-	<!-- Settings Modal - REORGANIZED LAYOUT -->
+	<!-- Settings Modal - UPDATED WITH SYNTAX HIGHLIGHTING CHECKBOX -->
 	<div class="settings-modal" id="settings-modal">
 		<div class="settings-editor">
 			<div class="settings-header">
@@ -112,7 +116,7 @@ Whatever, prob not those though."
 				<div class="settings-section">
 					<div class="settings-section-title">Listener Detection & Code Display</div>
 					
-					<!-- Checkboxes in one row -->
+					<!-- Checkboxes in one row - UPDATED with syntax highlighting -->
 					<div class="settings-row">
 						<label class="settings-checkbox-label">
 							<input type="checkbox" id="dedupe-toggle" class="settings-checkbox">
@@ -121,6 +125,14 @@ Whatever, prob not those though."
 						<label class="settings-checkbox-label">
 							<input type="checkbox" id="prettify-toggle" class="settings-checkbox">
 							<span class="settings-checkbox-text">Auto-prettify code</span>
+						</label>
+					</div>
+					
+					<!-- NEW: Second row of checkboxes -->
+					<div class="settings-row">
+						<label class="settings-checkbox-label">
+							<input type="checkbox" id="syntax-highlight-toggle" class="settings-checkbox">
+							<span class="settings-checkbox-text">Enable syntax highlighting (highlight.js)</span>
 						</label>
 					</div>
 					

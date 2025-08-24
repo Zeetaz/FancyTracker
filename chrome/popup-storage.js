@@ -17,8 +17,9 @@ class PopupStorage {
         this.compiledRegex = []; // Compiled regex patterns for performance
         this.originalLogUrl = '';
         this.prettifyEnabled = false;
-        this.dedupeEnabled = false;
-        this.expandThreshold = 2000; // Increased from 1600
+        this.dedupeEnabled = true; // Default: enabled
+        this.syntaxHighlightEnabled = true; // FIXED: Default to true instead of false
+        this.expandThreshold = 4000; // Increased from 1600 - nvm changed to 4k
         this.maxLines = 40; // Increased from 30
         this.codeFontSize = 12; // Default font size
     }
@@ -30,8 +31,32 @@ class PopupStorage {
         await this.loadLogUrl();
         await this.loadPrettifySetting();
         await this.loadDedupeSetting();
+        await this.loadSyntaxHighlightSetting(); // Load syntax highlighting setting
         await this.loadCodeSettings();
         await this.loadRegexPatterns();
+    }
+
+    // Load syntax highlighting setting - FIXED: Default to true
+    loadSyntaxHighlightSetting() {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(['syntaxHighlightEnabled'], (result) => {
+                // Default to true if not set
+                this.syntaxHighlightEnabled = result.syntaxHighlightEnabled !== undefined ? result.syntaxHighlightEnabled : true;
+                console.log('FancyTracker: Loaded syntax highlight setting:', this.syntaxHighlightEnabled);
+                resolve();
+            });
+        });
+    }
+
+    // Save syntax highlighting setting
+    saveSyntaxHighlightSetting(enabled) {
+        return new Promise((resolve) => {
+            this.syntaxHighlightEnabled = enabled;
+            chrome.storage.local.set({ syntaxHighlightEnabled: enabled }, () => {
+                console.log('FancyTracker: Saved syntax highlight setting:', enabled);
+                resolve();
+            });
+        });
     }
 
     // Load regex patterns from storage
@@ -122,7 +147,7 @@ class PopupStorage {
     loadDedupeSetting() {
         return new Promise((resolve) => {
             chrome.storage.local.get([STORAGE_KEYS.DEDUPE_ENABLED], (result) => {
-                this.dedupeEnabled = result[STORAGE_KEYS.DEDUPE_ENABLED] !== undefined ? result[STORAGE_KEYS.DEDUPE_ENABLED] : true;  // Changed to true
+                this.dedupeEnabled = result[STORAGE_KEYS.DEDUPE_ENABLED] !== undefined ? result[STORAGE_KEYS.DEDUPE_ENABLED] : true;
                 console.log('FancyTracker: Loaded dedupe setting:', this.dedupeEnabled);
                 resolve();
             });

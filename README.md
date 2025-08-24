@@ -42,7 +42,14 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 </tr>
 </table>
 
+## To-Do:
+- Make extension blocklist customizable via UI settings...
+- Fix a forced reload of the UI after applying custom highlight in certain scenarios - for now, just re-open the extension once if it does not apply instantly. Not a big deal.
+- Rest should work fine, let me know otherwise.
+
 ## Stuff
+
+**General Syntax Highlighting** - Added support for syntax highlighting using [highlight.js](https://github.com/highlightjs/highlight.js).
 
 **Listener Detection** - Monitors all `postMessage` event listeners across frames and origins, showing their source code and stack traces.
 

@@ -478,6 +478,14 @@ class PopupMain {
         
         // Open modal
         highlightBtn.addEventListener('click', () => {
+            // Reload rules text in case it changed
+            chrome.storage.local.get(['highlightRulesText'], (result) => {
+                if (result.highlightRulesText) {
+                    textarea.value = result.highlightRulesText;
+                } else {
+                    textarea.value = '';
+                }
+            });
             modal.classList.add('show');
         });
         
@@ -485,17 +493,26 @@ class PopupMain {
         cancelBtn.addEventListener('click', () => {
             modal.classList.remove('show');
         });
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
         
         // Save and apply rules
         saveBtn.addEventListener('click', () => {
             const rulesText = textarea.value;
             const parsedRules = this.ui.parseHighlightText(rulesText);
             
+            console.log('FancyTracker: Saving highlight rules:', parsedRules);
+            
             // Save rules to storage
             this.storage.saveHighlightRules(parsedRules, rulesText);
             
-            // Re-highlight all code blocks
-            this.ui.reHighlightCodeBlocks();
+            // Re-highlight all code blocks (preserve syntax highlighting since only custom rules changed)
+            this.ui.reHighlightCodeBlocks(false);
             
             modal.classList.remove('show');
         });
@@ -510,6 +527,7 @@ class PopupMain {
         const cancelBtn = document.getElementById('settings-cancel');
         const prettifyToggle = document.getElementById('prettify-toggle');
         const dedupeToggle = document.getElementById('dedupe-toggle');
+        const syntaxHighlightToggle = document.getElementById('syntax-highlight-toggle');
         
         // Code display settings
         const expandThresholdInput = document.getElementById('expand-threshold-input');
@@ -537,6 +555,12 @@ class PopupMain {
             if (dedupeToggle) {
                 dedupeToggle.checked = this.storage.dedupeEnabled;
                 console.log('FancyTracker: Setting dedupe checkbox to:', this.storage.dedupeEnabled);
+            }
+            
+            // Set syntax highlight toggle to current state (now defaults to true)
+            if (syntaxHighlightToggle) {
+                syntaxHighlightToggle.checked = this.storage.syntaxHighlightEnabled;
+                console.log('FancyTracker: Setting syntax highlight checkbox to:', this.storage.syntaxHighlightEnabled);
             }
             
             // Set code display settings
@@ -568,6 +592,10 @@ class PopupMain {
             if (dedupeToggle) {
                 dedupeToggle.checked = this.storage.dedupeEnabled;
             }
+            // Reset syntax highlight toggle to original state (now defaults to true)
+            if (syntaxHighlightToggle) {
+                syntaxHighlightToggle.checked = this.storage.syntaxHighlightEnabled;
+            }
             // Reset code display settings
             if (expandThresholdInput) {
                 expandThresholdInput.value = this.storage.expandThreshold;
@@ -583,6 +611,13 @@ class PopupMain {
         if (cancelBtn) {
             cancelBtn.addEventListener('click', closeModal);
         }
+
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
         
         // Save settings
         if (saveBtn) {
@@ -593,6 +628,14 @@ class PopupMain {
                 const prettifyEnabled = prettifyToggle ? prettifyToggle.checked : false;
                 const prettifyChanged = prettifyEnabled !== this.storage.prettifyEnabled;
                 await this.storage.savePrettifySetting(prettifyEnabled);
+                
+                // Handle syntax highlighting setting (now defaults to true)
+                const syntaxHighlightEnabled = syntaxHighlightToggle ? syntaxHighlightToggle.checked : true;
+                const syntaxHighlightChanged = syntaxHighlightEnabled !== this.storage.syntaxHighlightEnabled;
+                if (syntaxHighlightChanged) {
+                    console.log('FancyTracker: Syntax highlight setting changed to:', syntaxHighlightEnabled);
+                    await this.storage.saveSyntaxHighlightSetting(syntaxHighlightEnabled);
+                }
                 
                 // Handle dedupe setting
                 const dedupeEnabled = dedupeToggle ? dedupeToggle.checked : true;
@@ -638,9 +681,20 @@ class PopupMain {
                 }
                 
                 // Refresh display to apply changes
-                if (prettifyChanged || dedupeChanged || codeSettingsChanged) {
-                    // Re-highlight code blocks to apply new settings
-                    this.ui.reHighlightCodeBlocks();
+                if (prettifyChanged || syntaxHighlightChanged || dedupeChanged || codeSettingsChanged) {
+                    // Determine if we need to force a full rebuild
+                    const needsFullRebuild = prettifyChanged || syntaxHighlightChanged;
+                    
+                    if (needsFullRebuild) {
+                        console.log('FancyTracker: Settings changed that affect syntax highlighting, doing full rebuild');
+                        // Re-highlight code blocks with full rebuild (syntax highlighting settings changed)
+                        this.ui.reHighlightCodeBlocks(true);
+                    } else {
+                        console.log('FancyTracker: Only non-highlighting settings changed, preserving existing highlighting');
+                        // Just update custom highlighting (preserve syntax highlighting)
+                        this.ui.reHighlightCodeBlocks(false);
+                    }
+                    
                     this.refreshDisplay(false);
                 }
                 
