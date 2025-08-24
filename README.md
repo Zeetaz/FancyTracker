@@ -18,24 +18,24 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 <table>
 <tr>
 <td align="center">
-<img src="demo/images/img1.png" alt="Main Interface" width="480"/>
+<img src="demo/images/img1_1.1.0.png" alt="Main Interface" width="480"/>
 <br><b>Main Interface</b>
 <br><i>Listener detection</i>
 </td>
 <td align="center">
-<img src="demo/images/img2.png" alt="Settings Panel" width="480"/>
+<img src="demo/images/img2_1.1.0.png" alt="Settings Panel" width="480"/>
 <br><b>Main Interface</b>
 <br><i>... with highlighting configured</i>
 </td>
 </tr>
 <tr>
 <td align="center">
-<img src="demo/images/img3.png" alt="Syntax Highlighting" width="480"/>
+<img src="demo/images/img3_1.1.0.png" alt="Syntax Highlighting" width="480"/>
 <br><b>Highlighting Configurations</b>
 <br><i>Code syntax customization</i>
 </td>
 <td align="center">
-<img src="demo/images/img4.png" alt="Blocked View" width="480"/>
+<img src="demo/images/img4_1.1.0.png" alt="Blocked View" width="480"/>
 <br><b>Global Settings</b>
 <br><i>Dedupe, Prettify, import/export, logging</i>
 </td>
