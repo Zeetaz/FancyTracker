@@ -13,6 +13,9 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 3. Enable **Developer mode**
 4. Click **Load unpacked** and select the "chrome" folder
 
+## For you Firefox enjoyers:
+[FancyTracker - Firefox](https://github.com/Zeetaz/FancyTracker-FF)
+
 ## Gallery
 
 <table>
