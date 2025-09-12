@@ -14,8 +14,9 @@ A **LOT** of **vibing** has been going on in here, that's for sure...
 4. Click **Load unpacked** and select the "chrome" folder
 
 ## For you Firefox enjoyers:
-[FancyTracker - Firefox](https://github.com/Zeetaz/FancyTracker-FF)
-
+Github: [FancyTracker - Firefox](https://github.com/Zeetaz/FancyTracker-FF)</br>
+But also: [Available via Mozilla "Add-Ons"](https://addons.mozilla.org/en-US/firefox/addon/fancytracker-ff/)</br>
+**Google will add the extension to their store shortly... hopefully :)**
 ## Gallery
 
 <table>
